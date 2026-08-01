@@ -1,0 +1,128 @@
+<div class="container-fluid">
+
+    <div class="row mb-4">
+
+        <div class="col">
+
+            <h2 class="fw-bold">
+                Control de pH
+            </h2>
+
+            <p class="text-secondary">
+                Configuración y monitoreo del sistema automático de pH.
+            </p>
+
+        </div>
+
+    </div>
+
+    <div class="row g-4">
+
+        <div class="col-lg-6">
+
+            <div class="card sensor-card">
+
+                <div class="card-body">
+
+                    <h5>pH Actual</h5>
+
+                    <h1 id="currentPh">5.82</h1>
+
+                    <span class="badge bg-success" id="phState">
+                        ESTABLE
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-6">
+
+            <div class="card sensor-card">
+
+                <div class="card-body">
+
+                    <h5>Objetivo</h5>
+
+                    <input
+                        type="number"
+                        id="targetPh"
+                        class="form-control mb-3"
+                        value="5.80"
+                        step="0.01">
+
+                    <button class="btn btn-success w-100">
+                        Guardar Objetivo
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="row g-4 mt-2">
+
+        <div class="col-lg-6">
+
+            <div class="card sensor-card">
+
+                <div class="card-body">
+
+                    <h5>Control Manual</h5>
+
+                    <div class="d-grid gap-2">
+
+                        <button class="btn btn-danger">
+                            Dosificar pH-
+                        </button>
+
+                        <button class="btn btn-primary">
+                            Dosificar pH+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-6">
+
+            <div class="card sensor-card">
+
+                <div class="card-body">
+
+                    <h5>Modo Automático</h5>
+
+                    <div class="form-check form-switch fs-5">
+
+                        <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="autoMode"
+                        checked>
+
+                        <label class="form-check-label">
+
+                            Activado
+
+                        </label>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>

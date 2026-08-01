@@ -1,0 +1,113 @@
+body{
+
+margin:0;
+
+background:#1A1D21;
+
+font-family:Inter,Arial,sans-serif;
+
+color:white;
+
+}
+
+.wrapper{
+
+display:flex;
+
+height:100vh;
+
+}
+
+.sidebar{
+
+width:260px;
+
+background:#252A31;
+
+padding:25px;
+
+}
+
+.logo{
+
+margin-bottom:40px;
+
+}
+
+.sidebar ul{
+
+padding:0;
+
+list-style:none;
+
+}
+
+.sidebar li{
+
+padding:14px;
+
+margin-bottom:10px;
+
+border-radius:10px;
+
+cursor:pointer;
+
+transition:.2s;
+
+}
+
+.sidebar li:hover{
+
+background:#323840;
+
+}
+
+.sidebar i{
+
+margin-right:10px;
+
+}
+
+.content{
+
+flex:1;
+
+padding:35px;
+
+overflow:auto;
+
+}
+
+.sensor-card{
+
+    background:#252A31;
+
+    color:white;
+
+    border:none;
+
+    border-radius:18px;
+
+    transition:.25s;
+
+}
+
+.sensor-card:hover{
+
+    transform:translateY(-4px);
+
+    box-shadow:0px 0px 18px rgba(0,0,0,.4);
+
+}
+
+.sensor-card h1{
+
+    font-size:46px;
+
+    margin-top:15px;
+
+    margin-bottom:15px;
+
+    font-weight:bold;
+
+}
