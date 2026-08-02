@@ -1,113 +1,450 @@
-body{
-
-margin:0;
-
-background:#1A1D21;
-
-font-family:Inter,Arial,sans-serif;
-
-color:white;
-
+* {
+    box-sizing: border-box;
 }
 
-.wrapper{
-
-display:flex;
-
-height:100vh;
-
+html {
+    width: 100%;
+    min-height: 100%;
 }
 
-.sidebar{
-
-width:260px;
-
-background:#252A31;
-
-padding:25px;
-
+body {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+    background: #1a1d21;
+    color: #ffffff;
+    font-family: Inter, Arial, sans-serif;
 }
 
-.logo{
+/* =====================================================
+   ESTRUCTURA PRINCIPAL
+===================================================== */
 
-margin-bottom:40px;
-
+.wrapper {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
 }
 
-.sidebar ul{
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1100;
 
-padding:0;
+    width: 260px;
+    height: 100vh;
+    padding: 25px;
 
-list-style:none;
+    overflow-y: auto;
 
+    background: #252a31;
+
+    transition: transform 0.25s ease;
 }
 
-.sidebar li{
-
-padding:14px;
-
-margin-bottom:10px;
-
-border-radius:10px;
-
-cursor:pointer;
-
-transition:.2s;
-
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-.sidebar li:hover{
-
-background:#323840;
-
+.logo {
+    margin: 0 0 40px 0;
+    font-size: 24px;
+    white-space: nowrap;
 }
 
-.sidebar i{
+.sidebar-close-button {
+    display: none;
 
-margin-right:10px;
+    padding: 5px;
 
+    border: none;
+    background: transparent;
+    color: #ffffff;
+
+    font-size: 25px;
 }
 
-.content{
-
-flex:1;
-
-padding:35px;
-
-overflow:auto;
-
+.sidebar ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-.sensor-card{
+.sidebar li {
+    display: flex;
+    align-items: center;
 
-    background:#252A31;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 14px;
 
-    color:white;
+    border-radius: 10px;
 
-    border:none;
+    cursor: pointer;
 
-    border-radius:18px;
-
-    transition:.25s;
-
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
 }
 
-.sensor-card:hover{
-
-    transform:translateY(-4px);
-
-    box-shadow:0px 0px 18px rgba(0,0,0,.4);
-
+.sidebar li:hover {
+    background: #323840;
 }
 
-.sensor-card h1{
+.sidebar li.active {
+    background: #198754;
+}
 
-    font-size:46px;
+.sidebar li i {
+    width: 25px;
+    margin-right: 10px;
 
-    margin-top:15px;
+    text-align: center;
+    font-size: 18px;
+}
 
-    margin-bottom:15px;
+.content {
+    width: calc(100% - 260px);
+    min-width: 0;
+    min-height: 100vh;
 
-    font-weight:bold;
+    margin-left: 260px;
+    padding: 35px;
 
+    overflow-x: hidden;
+}
+
+/* =====================================================
+   BARRA SUPERIOR PARA CELULAR
+===================================================== */
+
+.mobile-header {
+    display: none;
+}
+
+.sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+
+    display: none;
+
+    background: rgba(0, 0, 0, 0.65);
+}
+
+/* =====================================================
+   TARJETAS
+===================================================== */
+
+.sensor-card {
+    height: 100%;
+
+    border: none;
+    border-radius: 18px;
+
+    background: #252a31;
+    color: #ffffff;
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.sensor-card:hover {
+    transform: translateY(-4px);
+
+    box-shadow:
+        0 0 18px rgba(0, 0, 0, 0.4);
+}
+
+.sensor-card h1 {
+    margin-top: 15px;
+    margin-bottom: 15px;
+
+    font-size: 46px;
+    font-weight: bold;
+}
+
+/* =====================================================
+   CONTENIDO BOOTSTRAP
+===================================================== */
+
+.container-fluid {
+    width: 100%;
+    max-width: 100%;
+    padding-right: 0;
+    padding-left: 0;
+}
+
+.card {
+    max-width: 100%;
+}
+
+.card-body {
+    overflow-wrap: anywhere;
+}
+
+.form-control,
+.form-select,
+.input-group-text,
+.btn {
+    min-height: 44px;
+}
+
+.form-control,
+.form-select {
+    max-width: 100%;
+}
+
+.input-group {
+    max-width: 100%;
+}
+
+.alert {
+    overflow-wrap: anywhere;
+}
+
+.list-group-item {
+    overflow-wrap: anywhere;
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+}
+
+/* =====================================================
+   TABLETS
+===================================================== */
+
+@media (max-width: 991.98px) {
+
+    .mobile-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1000;
+
+        display: flex;
+        align-items: center;
+
+        width: 100%;
+        height: 64px;
+        padding: 0 16px;
+
+        border-bottom: 1px solid #353b43;
+        background: #252a31;
+    }
+
+    .mobile-menu-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        width: 44px;
+        height: 44px;
+        margin-right: 12px;
+        padding: 0;
+
+        border: none;
+        border-radius: 9px;
+
+        background: #323840;
+        color: #ffffff;
+
+        font-size: 28px;
+    }
+
+    .mobile-logo {
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+    .sidebar {
+        width: 280px;
+        max-width: 85vw;
+
+        transform: translateX(-100%);
+
+        box-shadow:
+            8px 0 30px rgba(0, 0, 0, 0.45);
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar-close-button {
+        display: block;
+        margin-top: -32px;
+    }
+
+    .sidebar-overlay.visible {
+        display: block;
+    }
+
+    .content {
+        width: 100%;
+        min-height: 100vh;
+
+        margin-left: 0;
+        padding: 88px 20px 25px;
+    }
+
+    body.menu-open {
+        overflow: hidden;
+    }
+
+    .sensor-card:hover {
+        transform: none;
+    }
+}
+
+/* =====================================================
+   CELULARES
+===================================================== */
+
+@media (max-width: 575.98px) {
+
+    .mobile-header {
+        height: 58px;
+        padding: 0 12px;
+    }
+
+    .mobile-menu-button {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+
+        font-size: 25px;
+    }
+
+    .mobile-logo {
+        font-size: 18px;
+    }
+
+    .content {
+        padding:
+            76px
+            12px
+            22px;
+    }
+
+    .container-fluid {
+        padding: 0;
+    }
+
+    h2 {
+        font-size: 24px;
+    }
+
+    h5 {
+        font-size: 18px;
+    }
+
+    .row {
+        --bs-gutter-x: 0.9rem;
+    }
+
+    .row.g-4 {
+        --bs-gutter-y: 0.9rem;
+    }
+
+    .card {
+        border-radius: 14px !important;
+    }
+
+    .card-body {
+        padding: 17px;
+    }
+
+    .sensor-card h1 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+
+        font-size: 38px;
+    }
+
+    .btn {
+        width: 100%;
+        white-space: normal;
+    }
+
+    .d-flex.justify-content-between {
+        gap: 12px;
+    }
+
+    .card-body > .d-flex.justify-content-between {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+
+    #scanWifiButton {
+        width: 100%;
+    }
+
+    #saveWifiButton {
+        width: 100%;
+    }
+
+    #resetWifiButton {
+        width: 100%;
+    }
+
+    .input-group-text {
+        padding-right: 10px;
+        padding-left: 10px;
+    }
+
+    .form-control,
+    .form-select,
+    .input-group-text,
+    .btn {
+        font-size: 16px;
+    }
+
+    .alert {
+        padding: 12px;
+        font-size: 14px;
+    }
+
+    .list-group-item {
+        padding: 13px;
+    }
+
+    .sidebar {
+        padding: 22px;
+    }
+
+    .logo {
+        font-size: 22px;
+    }
+}
+
+/* =====================================================
+   CELULARES MUY CHICOS
+===================================================== */
+
+@media (max-width: 360px) {
+
+    .content {
+        padding-right: 9px;
+        padding-left: 9px;
+    }
+
+    .card-body {
+        padding: 14px;
+    }
+
+    .mobile-logo {
+        font-size: 16px;
+    }
+
+    .sensor-card h1 {
+        font-size: 34px;
+    }
 }
