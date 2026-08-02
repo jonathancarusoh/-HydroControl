@@ -1,19 +1,24 @@
 const hydro = {
-    ph: 5.82,
-    ec: 1.45,
-    waterTemp: 18.5,
-    humidity: 61,
-    online: true
+    online: false,
+    ph: 0,
+    ec: 0,
+    waterTemp: 0,
+    humidity: 0,
+    wifiRssi: 0
 };
 
-function simulateData() {
+async function getStatus() {
+    const response = await fetch("/api/status", {
+        cache: "no-store"
+    });
 
-    hydro.ph += (Math.random() - 0.5) * 0.02;
+    if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`);
+    }
 
-    hydro.ec += (Math.random() - 0.5) * 0.01;
+    const data = await response.json();
 
-    hydro.waterTemp += (Math.random() - 0.5) * 0.05;
+    Object.assign(hydro, data);
 
-    hydro.humidity += (Math.random() - 0.5) * 0.3;
-
+    return hydro;
 }

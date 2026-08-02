@@ -3,7 +3,60 @@
 #include <WebServer.h>
 #include <LittleFS.h>
 
+// ===============================
+// CONFIGURACIÓN WIFI
+// ===============================
+
+const char* WIFI_SSID = "TU_RED_WIFI";
+const char* WIFI_PASSWORD = "TU_CONTRASENA";
+
+// Servidor HTTP en el puerto 80
 WebServer server(80);
+
+// Datos simulados hasta conectar los sensores reales
+float currentPh = 5.82f;
+float currentEc = 1.45f;
+float waterTemperature = 18.5f;
+float airHumidity = 61.0f;
+
+// ===============================
+// API REST
+// ===============================
+
+void handleApiStatus()
+{
+    String json = "{";
+
+    json += "\"online\":true,";
+    json += "\"ph\":" + String(currentPh, 2) + ",";
+    json += "\"ec\":" + String(currentEc, 2) + ",";
+    json += "\"waterTemp\":" + String(waterTemperature, 1) + ",";
+    json += "\"humidity\":" + String(airHumidity, 0) + ",";
+    json += "\"wifiRssi\":" + String(WiFi.RSSI());
+
+    json += "}";
+
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(200, "application/json", json);
+}
+
+// ===============================
+// ARCHIVOS DE LITTLEFS
+// ===============================
+
+String getContentType(const String& path)
+{
+    if (path.endsWith(".html")) return "text/html";
+    if (path.endsWith(".css")) return "text/css";
+    if (path.endsWith(".js")) return "application/javascript";
+    if (path.endsWith(".json")) return "application/json";
+    if (path.endsWith(".png")) return "image/png";
+    if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+    if (path.endsWith(".svg")) return "image/svg+xml";
+    if (path.endsWith(".ico")) return "image/x-icon";
+
+    return "text/plain";
+}
 
 void handleFileRequest()
 {
@@ -22,35 +75,19 @@ void handleFileRequest()
 
     File file = LittleFS.open(path, "r");
 
-    String contentType = "text/plain";
+    if (!file)
+    {
+        server.send(500, "text/plain", "No se pudo abrir el archivo");
+        return;
+    }
 
-    if (path.endsWith(".html"))
-        contentType = "text/html";
-
-    else if (path.endsWith(".css"))
-        contentType = "text/css";
-
-    else if (path.endsWith(".js"))
-        contentType = "application/javascript";
-
-    else if (path.endsWith(".png"))
-        contentType = "image/png";
-
-    else if (path.endsWith(".jpg"))
-        contentType = "image/jpeg";
-
-    server.streamFile(file, contentType);
-
+    server.streamFile(file, getContentType(path));
     file.close();
 }
+
 // ===============================
-// CONFIGURACIÓN WIFI
+// INICIO
 // ===============================
-
-const char* WIFI_SSID = "Personal-014";
-const char* WIFI_PASSWORD = "NyHJR88zGp";
-
-
 
 void setup()
 {
@@ -63,11 +100,11 @@ void setup()
     Serial.println("Iniciando sistema...");
     Serial.println();
 
-    Serial.print("Conectando a ");
-    Serial.println(WIFI_SSID);
-
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    Serial.print("Conectando a ");
+    Serial.println(WIFI_SSID);
 
     while (WiFi.status() != WL_CONNECTED)
     {
@@ -83,19 +120,26 @@ void setup()
     Serial.println("---------------------------------");
 
     if (!LittleFS.begin())
-{
-    Serial.println("Error al iniciar LittleFS");
-    while (true)
     {
-        delay(1000);
+        Serial.println("Error al iniciar LittleFS");
+
+        while (true)
+        {
+            delay(1000);
+        }
     }
-}
 
-server.onNotFound(handleFileRequest);
+    Serial.println("LittleFS iniciado correctamente");
 
-server.begin();
+    // La API debe registrarse antes de onNotFound
+    server.on("/api/status", HTTP_GET, handleApiStatus);
 
-Serial.println("Servidor Web iniciado");
+    // Cualquier otra ruta se busca en LittleFS
+    server.onNotFound(handleFileRequest);
+
+    server.begin();
+
+    Serial.println("Servidor web iniciado");
 }
 
 void loop()
