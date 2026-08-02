@@ -1,12 +1,19 @@
 async function loadPage(page) {
+    const response = await fetch(
+        "pages/" + page + ".html"
+    );
 
-    const response = await fetch("pages/" + page + ".html");
+    if (!response.ok) {
+        throw new Error(
+            `No se pudo cargar la página: ${page}`
+        );
+    }
+
     const html = await response.text();
 
     document.getElementById("page").innerHTML = html;
 
     switch (page) {
-
         case "dashboard":
             updateDashboard();
             break;
@@ -14,8 +21,11 @@ async function loadPage(page) {
         case "ph":
             updatePhPage();
             break;
-    }
 
+        case "wifi":
+            updateWifiPage();
+            break;
+    }
 }
 
 document.querySelectorAll(".sidebar li").forEach(item => {
