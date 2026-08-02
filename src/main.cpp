@@ -4,6 +4,7 @@
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <DNSServer.h>
+#include <ESPmDNS.h>
 
 // ======================================================
 // SERVIDOR Y MEMORIA
@@ -21,7 +22,7 @@ Preferences wifiPreferences;
 
 const char* SETUP_WIFI_NAME = "HydroControl-Setup";
 const char* SETUP_WIFI_PASSWORD = "hydrocontrol";
-
+const char* MDNS_HOSTNAME = "hydrocontrol";
 const byte DNS_PORT = 53;
 
 bool wifiSetupMode = false;
@@ -1083,6 +1084,55 @@ void registerServerRoutes()
     );
 }
 
+bool startMdns()
+{
+    if (wifiSetupMode)
+    {
+        return false;
+    }
+
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println(
+            "No se puede iniciar mDNS: WiFi desconectado."
+        );
+
+        return false;
+    }
+
+    if (!MDNS.begin(MDNS_HOSTNAME))
+    {
+        Serial.println(
+            "No se pudo iniciar el servicio mDNS."
+        );
+
+        return false;
+    }
+
+    MDNS.addService(
+        "http",
+        "tcp",
+        80
+    );
+
+    Serial.println(
+        "Servicio mDNS iniciado correctamente."
+    );
+
+    Serial.print(
+        "Acceso local: http://"
+    );
+
+    Serial.print(
+        MDNS_HOSTNAME
+    );
+
+    Serial.println(
+        ".local"
+    );
+
+    return true;
+}
 // ======================================================
 // SETUP
 // ======================================================
@@ -1163,33 +1213,39 @@ void setup()
         startWifiSetupMode();
     }
 
-    server.begin();
+ server.begin();
 
+Serial.println(
+    "Servidor web iniciado."
+);
+
+if (wifiSetupMode)
+{
     Serial.println(
-        "Servidor web iniciado."
+        "Conectate a HydroControl-Setup"
     );
 
-    if (wifiSetupMode)
-    {
-        Serial.println(
-            "Conectate a HydroControl-Setup"
-        );
-
-        Serial.println(
-            "Abrí: http://192.168.4.1"
-        );
-    }
-    else
-    {
-        Serial.print(
-            "Abrí HydroControl en: http://"
-        );
-
-        Serial.println(
-            WiFi.localIP()
-        );
-    }
+    Serial.println(
+        "Abrí: http://192.168.4.1"
+    );
 }
+else
+{
+    startMdns();
+
+    Serial.print(
+        "IP actual: http://"
+    );
+
+    Serial.println(
+        WiFi.localIP()
+    );
+
+    Serial.println(
+        "Nombre permanente: http://hydrocontrol.local"
+    );
+}
+};
 
 // ======================================================
 // LOOP
