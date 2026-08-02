@@ -1,19 +1,13 @@
 <div class="container-fluid">
 
     <div class="row mb-4">
-
         <div class="col">
-
-            <h2 class="fw-bold">
-                Control de pH
-            </h2>
+            <h2 class="fw-bold">Control de pH</h2>
 
             <p class="text-secondary">
                 Configuración y monitoreo del sistema automático de pH.
             </p>
-
         </div>
-
     </div>
 
     <div class="row g-4">
@@ -21,19 +15,19 @@
         <div class="col-lg-6">
 
             <div class="card sensor-card">
-
                 <div class="card-body">
 
                     <h5>pH Actual</h5>
 
-                    <h1 id="currentPh">5.82</h1>
+                    <h1 id="currentPh">--</h1>
 
-                    <span class="badge bg-success" id="phState">
+                    <span
+                        class="badge bg-success"
+                        id="phState">
                         ESTABLE
                     </span>
 
                 </div>
-
             </div>
 
         </div>
@@ -41,7 +35,6 @@
         <div class="col-lg-6">
 
             <div class="card sensor-card">
-
                 <div class="card-body">
 
                     <h5>Objetivo</h5>
@@ -51,14 +44,23 @@
                         id="targetPh"
                         class="form-control mb-3"
                         value="5.80"
+                        min="4"
+                        max="8"
                         step="0.01">
 
-                    <button class="btn btn-success w-100">
-                        Guardar Objetivo
+                    <button
+                        id="saveTargetButton"
+                        class="btn btn-success w-100">
+                        Guardar objetivo
                     </button>
 
-                </div>
+                    <div
+    id="targetMessage"
+    class="alert d-none mt-3"
+    role="alert">
+</div>
 
+                </div>
             </div>
 
         </div>
@@ -70,25 +72,153 @@
         <div class="col-lg-6">
 
             <div class="card sensor-card">
-
                 <div class="card-body">
 
-                    <h5>Control Manual</h5>
+                    <h5>Control manual</h5>
 
                     <div class="d-grid gap-2">
 
-                        <button class="btn btn-danger">
+                        <button
+                            id="doseMinusButton"
+                            class="btn btn-danger">
                             Dosificar pH-
                         </button>
 
-                        <button class="btn btn-primary">
+                        <button
+                            id="dosePlusButton"
+                            class="btn btn-primary">
                             Dosificar pH+
                         </button>
 
                     </div>
 
-                </div>
+                    <hr class="my-4">
 
+                    <h5 class="mb-3">
+                        Configuración de dosificación
+                    </h5>
+
+                    <div class="mb-3">
+
+          <label for="doseDuration" class="form-label">
+    Duración de cada dosis
+</label>
+
+<div class="input-group">
+    <input
+        type="number"
+        id="doseDuration"
+        class="form-control"
+        value="1"
+        min="0.1"
+        max="30"
+        step="0.1">
+
+    <span class="input-group-text">
+        segundos
+    </span>
+</div>
+
+<small class="text-secondary">
+    Tiempo que permanecerá encendida la bomba.
+</small>
+
+                        <small class="text-secondary">
+                            Tiempo que permanecerá encendida la bomba.
+                        </small>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label
+                            for="doseInterval"
+                            class="form-label">
+                            Espera entre dosificaciones
+                        </label>
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                id="doseInterval"
+                                class="form-control"
+                                value="4"
+                                min="1"
+                                max="120"
+                                step="1">
+
+                            <span class="input-group-text">
+                                minutos
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label
+                            for="maxDoses"
+                            class="form-label">
+                            Máximo de dosis consecutivas
+                        </label>
+
+                        <input
+                            type="number"
+                            id="maxDoses"
+                            class="form-control"
+                            value="3"
+                            min="1"
+                            max="10"
+                            step="1">
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label
+                            for="phTolerance"
+                            class="form-label">
+                            Margen permitido
+                        </label>
+
+                        <div class="input-group">
+
+                            <span class="input-group-text">
+                                ±
+                            </span>
+
+                            <input
+                                type="number"
+                                id="phTolerance"
+                                class="form-control"
+                                value="0.10"
+                                min="0.01"
+                                max="1"
+                                step="0.01">
+
+                            <span class="input-group-text">
+                                pH
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <button
+                        id="saveDoseConfigButton"
+                        class="btn btn-success w-100">
+                        Guardar configuración
+                    </button>
+
+                    <div
+                        id="configMessage"
+                        class="alert d-none mt-3"
+                        role="alert">
+                    </div>
+
+                </div>
             </div>
 
         </div>
@@ -96,29 +226,37 @@
         <div class="col-lg-6">
 
             <div class="card sensor-card">
-
                 <div class="card-body">
 
-                    <h5>Modo Automático</h5>
+                    <h5>Modo automático</h5>
 
                     <div class="form-check form-switch fs-5">
 
                         <input
-                        class="form-check-input"
-                        type="checkbox"
-                        id="autoMode"
-                        checked>
+                            class="form-check-input"
+                            type="checkbox"
+                            id="autoMode"
+                            checked>
 
-                        <label class="form-check-label">
-
+                        <label
+                            class="form-check-label"
+                            for="autoMode">
                             Activado
-
                         </label>
 
                     </div>
 
-                </div>
+                    <hr class="my-4">
 
+                    <p class="mb-2">
+                        El ESP32 medirá el pH continuamente.
+                    </p>
+
+                    <p class="text-secondary mb-0">
+                        Solo permitirá una nueva dosificación cuando haya transcurrido el intervalo configurado.
+                    </p>
+
+                </div>
             </div>
 
         </div>
