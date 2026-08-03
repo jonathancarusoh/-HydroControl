@@ -1,207 +1,163 @@
-<div class="container-fluid">
+<div class="container-fluid wifi-page">
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-
+    <div class="wifi-page-heading mb-4">
         <div>
+            <span class="wifi-eyebrow">CONECTIVIDAD</span>
+
             <h2 class="mb-1">
                 <i class="bi bi-wifi"></i>
                 Configuración WiFi
             </h2>
 
             <p class="text-secondary mb-0">
-                Estado de conexión y cambio de red de HydroControl.
+                Consultá el estado, buscá redes y elegí cómo se conectará HydroControl.
             </p>
         </div>
-
     </div>
 
     <!-- ESTADO ACTUAL -->
 
-    <div class="card bg-dark text-white border-secondary mb-4">
-
+    <section class="card wifi-panel mb-4">
         <div class="card-body">
-
-            <h5 class="card-title mb-4">
-                Estado actual
-            </h5>
-
-            <div class="row g-3">
-
-                <div class="col-md-6">
-
-                    <div class="p-3 border border-secondary rounded">
-
-                        <small class="text-secondary">
-                            Estado
-                        </small>
-
-                        <div class="fs-5 fw-bold mt-1"
-                             id="wifiConnectionStatus">
-
-                            Cargando...
-
-                        </div>
-
-                    </div>
-
+            <div class="wifi-section-heading">
+                <div>
+                    <h5 class="card-title mb-1">Estado actual</h5>
+                    <p class="text-secondary mb-0">
+                        Información de la conexión que está usando el ESP32.
+                    </p>
                 </div>
 
-                <div class="col-md-6">
-
-                    <div class="p-3 border border-secondary rounded">
-
-                        <small class="text-secondary">
-                            Red conectada
-                        </small>
-
-                        <div class="fs-5 fw-bold mt-1"
-                             id="wifiCurrentSsid">
-
-                            ---
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="col-md-6">
-
-                    <div class="p-3 border border-secondary rounded">
-
-                        <small class="text-secondary">
-                            Dirección IP
-                        </small>
-
-                        <div class="fs-5 fw-bold mt-1"
-                             id="wifiCurrentIp">
-
-                            ---
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="col-md-6">
-
-                    <div class="p-3 border border-secondary rounded">
-
-                        <small class="text-secondary">
-                            Intensidad de señal
-                        </small>
-
-                        <div class="fs-5 fw-bold mt-1"
-                             id="wifiSignal">
-
-                            ---
-
-                        </div>
-
-                    </div>
-
-                </div>
-
+                <span class="wifi-live-dot" aria-hidden="true"></span>
             </div>
 
-        </div>
+            <div class="row g-3 mt-1">
+                <div class="col-12 col-md-6">
+                    <div class="wifi-status-tile">
+                        <span class="wifi-status-icon">
+                            <i class="bi bi-broadcast-pin"></i>
+                        </span>
 
-    </div>
+                        <div>
+                            <small>Estado</small>
+                            <div id="wifiConnectionStatus">Cargando...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="wifi-status-tile">
+                        <span class="wifi-status-icon">
+                            <i class="bi bi-router"></i>
+                        </span>
+
+                        <div>
+                            <small>Red actual</small>
+                            <div id="wifiCurrentSsid">---</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="wifi-status-tile">
+                        <span class="wifi-status-icon">
+                            <i class="bi bi-hdd-network"></i>
+                        </span>
+
+                        <div>
+                            <small>Dirección IP</small>
+                            <div id="wifiCurrentIp">---</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="wifi-status-tile">
+                        <span class="wifi-status-icon">
+                            <i class="bi bi-reception-4"></i>
+                        </span>
+
+                        <div>
+                            <small>Intensidad de señal</small>
+                            <div id="wifiSignal">---</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- BUSCAR REDES -->
 
-    <div class="card bg-dark text-white border-secondary mb-4">
-
+    <section class="card wifi-panel mb-4">
         <div class="card-body">
-
-            <div class="d-flex justify-content-between align-items-center mb-3">
-
+            <div class="wifi-section-heading">
                 <div>
-
-                    <h5 class="card-title mb-1">
-                        Redes disponibles
-                    </h5>
-
-                    <small class="text-secondary">
-                        Buscá una red WiFi cercana y seleccionála.
-                    </small>
-
+                    <h5 class="card-title mb-1">Redes disponibles</h5>
+                    <p class="text-secondary mb-0">
+                        Seleccioná una red de la lista. La red guardada se reconocerá automáticamente.
+                    </p>
                 </div>
 
                 <button
                     type="button"
-                    class="btn btn-outline-light"
+                    class="btn btn-outline-light wifi-scan-button"
                     id="scanWifiButton">
 
                     <i class="bi bi-arrow-clockwise"></i>
                     Buscar redes
-
                 </button>
-
             </div>
 
             <div
                 id="wifiScanMessage"
-                class="alert alert-info d-none"
+                class="alert alert-info d-none mt-3"
                 role="alert">
             </div>
 
             <div
                 id="wifiNetworkList"
-                class="list-group">
+                class="wifi-network-list mt-3">
 
-                <div class="text-secondary py-3">
-                    Presioná “Buscar redes” para comenzar.
+                <div class="wifi-empty-state">
+                    <i class="bi bi-wifi"></i>
+                    <span>Presioná “Buscar redes” para comenzar.</span>
                 </div>
+            </div>
+        </div>
+    </section>
 
+    <!-- CONECTAR -->
+
+    <section class="card wifi-panel mb-4" id="wifiConnectCard">
+        <div class="card-body">
+            <div class="wifi-section-heading mb-3">
+                <div>
+                    <h5 class="card-title mb-1">Conectar a una red</h5>
+                    <p class="text-secondary mb-0">
+                        Elegí una red arriba para preparar la conexión.
+                    </p>
+                </div>
             </div>
 
-        </div>
-
-    </div>
-
-    <!-- CONECTAR A NUEVA RED -->
-
-    <div class="card bg-dark text-white border-secondary mb-4">
-
-        <div class="card-body">
-
-            <h5 class="card-title mb-3">
-                Conectar a otra red
-            </h5>
-
             <div class="mb-3">
-
-                <label
-                    for="wifiSsid"
-                    class="form-label">
-
-                    Nombre de la red WiFi
-
+                <label for="wifiSsid" class="form-label">
+                    Red seleccionada
                 </label>
 
                 <input
                     type="text"
                     class="form-control"
                     id="wifiSsid"
-                    placeholder="Ejemplo: WiFi-Casa"
-                    autocomplete="off">
-
+                    placeholder="Seleccioná una red de la lista"
+                    readonly>
             </div>
 
-            <div class="mb-3">
-
-                <label
-                    for="wifiPassword"
-                    class="form-label">
-
+            <div class="mb-3" id="wifiPasswordGroup">
+                <label for="wifiPassword" class="form-label">
                     Contraseña
-
                 </label>
 
                 <div class="input-group">
-
                     <input
                         type="password"
                         class="form-control"
@@ -211,32 +167,44 @@
 
                     <button
                         type="button"
-                        class="btn btn-outline-secondary"
-                        id="toggleWifiPasswordButton">
+                        class="btn btn-outline-secondary wifi-password-toggle"
+                        id="toggleWifiPasswordButton"
+                        aria-label="Mostrar u ocultar contraseña">
 
-                        <i
-                            class="bi bi-eye"
-                            id="wifiPasswordIcon">
-                        </i>
-
+                        <i class="bi bi-eye" id="wifiPasswordIcon"></i>
                     </button>
-
                 </div>
+            </div>
 
-                <small class="text-secondary">
-                    Para una red abierta, dejá la contraseña vacía.
-                </small>
-
+            <div class="wifi-credential-hint" id="wifiCredentialHint">
+                Seleccioná una red para continuar.
             </div>
 
             <button
                 type="button"
-                class="btn btn-success"
-                id="saveWifiButton">
+                class="btn btn-link wifi-change-password d-none"
+                id="changeSavedPasswordButton">
+
+                Usar una contraseña nueva
+            </button>
+
+            <button
+                type="button"
+                class="btn btn-success wifi-primary-action mt-3"
+                id="saveWifiButton"
+                disabled>
 
                 <i class="bi bi-check-circle"></i>
-                Guardar y conectar
+                Conectar
+            </button>
 
+            <button
+                type="button"
+                class="btn btn-outline-danger wifi-primary-action mt-3 d-none"
+                id="deleteSavedPasswordButton">
+
+                <i class="bi bi-key"></i>
+                Eliminar contraseña guardada
             </button>
 
             <div
@@ -244,35 +212,65 @@
                 class="alert d-none mt-3"
                 role="alert">
             </div>
-
         </div>
+    </section>
 
-    </div>
+    <!-- DESCONECTAR SIN BORRAR -->
 
-    <!-- ZONA DE RECUPERACIÓN -->
-
-    <div class="card bg-dark text-white border-danger">
+    <section
+        class="card wifi-panel wifi-warning-panel mb-4 d-none"
+        id="wifiDisconnectCard">
 
         <div class="card-body">
+            <div class="wifi-section-heading">
+                <div>
+                    <h5 class="card-title mb-1 text-warning">
+                        Usar HydroControl sin router
+                    </h5>
 
+                    <p class="text-secondary mb-0" id="wifiDisconnectDescription">
+                        Desconectá el ESP32 sin borrar la red ni la contraseña guardadas.
+                    </p>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                class="btn btn-outline-warning wifi-primary-action mt-3"
+                id="disconnectWifiButton">
+
+                <i class="bi bi-wifi-off"></i>
+                Desconectar del router
+            </button>
+
+            <div
+                id="wifiConnectionActionMessage"
+                class="alert d-none mt-3"
+                role="alert">
+            </div>
+        </div>
+    </section>
+
+    <!-- BORRAR CREDENCIALES -->
+
+    <section class="card wifi-panel wifi-danger-panel">
+        <div class="card-body">
             <h5 class="card-title text-danger">
                 Borrar configuración WiFi
             </h5>
 
             <p class="text-secondary">
-                HydroControl eliminará la red guardada, se reiniciará
-                y creará nuevamente la red
-                <strong>HydroControl-Setup</strong>.
+                HydroControl eliminará definitivamente el nombre y la contraseña guardados,
+                se reiniciará y creará la red <strong>HydroControl-Setup</strong>.
             </p>
 
             <button
                 type="button"
-                class="btn btn-outline-danger"
+                class="btn btn-outline-danger wifi-primary-action"
                 id="resetWifiButton">
 
                 <i class="bi bi-trash"></i>
                 Borrar credenciales WiFi
-
             </button>
 
             <div
@@ -280,9 +278,7 @@
                 class="alert d-none mt-3"
                 role="alert">
             </div>
-
         </div>
-
-    </div>
+    </section>
 
 </div>

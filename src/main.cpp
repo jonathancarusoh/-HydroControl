@@ -22,10 +22,19 @@ Preferences wifiPreferences;
 
 const char* SETUP_WIFI_NAME = "HydroControl-Setup";
 const char* SETUP_WIFI_PASSWORD = "hydrocontrol";
+
+const char* LOCAL_WIFI_NAME = "HydroControl";
+const char* LOCAL_WIFI_PASSWORD = "hydrocontrol";
+
 const char* MDNS_HOSTNAME = "hydrocontrol";
 const byte DNS_PORT = 53;
 
 bool wifiSetupMode = false;
+bool localAccessMode = false;
+bool restartPending = false;
+unsigned long restartRequestedAt = 0;
+
+const unsigned long RESTART_DELAY_MS = 3000;
 
 // ======================================================
 // CONFIGURACIÓN DE HYDROCONTROL
@@ -214,6 +223,39 @@ void clearWifiCredentials()
     wifiPreferences.end();
 }
 
+void clearWifiPassword()
+{
+    // Conserva el nombre de la red y elimina solamente
+    // la contraseña almacenada en la memoria NVS.
+    wifiPreferences.begin("wifi", false);
+    wifiPreferences.putString("password", "");
+    wifiPreferences.end();
+}
+
+bool loadLocalAccessMode()
+{
+    wifiPreferences.begin("wifi", true);
+
+    bool enabled =
+        wifiPreferences.getBool("localMode", false);
+
+    wifiPreferences.end();
+
+    return enabled;
+}
+
+void saveLocalAccessMode(bool enabled)
+{
+    wifiPreferences.begin("wifi", false);
+
+    wifiPreferences.putBool(
+        "localMode",
+        enabled
+    );
+
+    wifiPreferences.end();
+}
+
 // ======================================================
 // CONEXIÓN WIFI
 // ======================================================
@@ -236,7 +278,14 @@ bool connectToSavedWifi()
     Serial.print("Conectando a WiFi: ");
     Serial.println(ssid);
 
+    // El hostname debe configurarse antes de iniciar
+    // la interfaz WiFi en modo estación.
+    WiFi.setHostname(MDNS_HOSTNAME);
     WiFi.mode(WIFI_STA);
+
+    // Evita pausas causadas por el ahorro de energía WiFi.
+    WiFi.setSleep(false);
+
     WiFi.persistent(false);
     WiFi.setAutoReconnect(true);
 
@@ -298,6 +347,10 @@ void handleWifiSetupPage()
         name="viewport"
         content="width=device-width, initial-scale=1.0">
 
+    <meta
+        name="theme-color"
+        content="#1a1d21">
+
     <title>Configurar HydroControl</title>
 
     <style>
@@ -308,27 +361,34 @@ void handleWifiSetupPage()
         body {
             margin: 0;
             min-height: 100vh;
-            padding: 24px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            padding: 20px;
             background: #1a1d21;
             color: #ffffff;
             font-family: Arial, sans-serif;
         }
 
-        .card {
+        .container {
             width: 100%;
-            max-width: 430px;
-            padding: 28px;
+            max-width: 470px;
+            margin: 20px auto;
+        }
+
+        .card {
+            padding: 24px;
             background: #252a31;
+            border: 1px solid #3c424b;
             border-radius: 18px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, .35);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
         }
 
         h1 {
-            margin-top: 0;
+            margin: 0 0 8px;
             font-size: 27px;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 20px;
         }
 
         p {
@@ -336,96 +396,883 @@ void handleWifiSetupPage()
             line-height: 1.5;
         }
 
+        button,
+        input {
+            width: 100%;
+            min-height: 48px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .refresh-button {
+            margin-top: 10px;
+            border: 1px solid #68707c;
+            background: transparent;
+            color: #ffffff;
+        }
+
+        .connect-button {
+            margin-top: 20px;
+            background: #198754;
+            color: #ffffff;
+        }
+
+        .connect-button:disabled,
+        .refresh-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .network-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .network-button {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+
+            width: 100%;
+            min-height: 62px;
+            padding: 12px 14px;
+
+            border: 1px solid #4a5059;
+            border-radius: 11px;
+
+            background: #1a1d21;
+            color: #ffffff;
+
+            text-align: left;
+        }
+
+        .network-button:hover {
+            border-color: #198754;
+        }
+
+        .network-button.selected {
+            border-color: #20c975;
+            background: #173d2a;
+        }
+
+        .network-info {
+            min-width: 0;
+        }
+
+        .network-name {
+            overflow: hidden;
+            font-weight: bold;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .network-details {
+            margin-top: 5px;
+            color: #aeb4bc;
+            font-size: 13px;
+        }
+
+        .network-icon {
+            flex-shrink: 0;
+            font-size: 20px;
+        }
+
+        .message {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 10px;
+            background: #323840;
+            color: #d7dbe0;
+        }
+
+        .message.error {
+            border: 1px solid #dc3545;
+            background: #442227;
+            color: #ffb9c0;
+        }
+
+        .message.success {
+            border: 1px solid #198754;
+            background: #173d2a;
+            color: #b7f5d1;
+        }
+
+        .selected-network {
+            display: none;
+            margin-top: 24px;
+            padding-top: 22px;
+            border-top: 1px solid #444a53;
+        }
+
+        .selected-network.visible {
+            display: block;
+        }
+
+        .selected-box {
+            margin-bottom: 16px;
+            padding: 13px;
+            border: 1px solid #198754;
+            border-radius: 10px;
+            background: #173d2a;
+        }
+
+        .selected-label {
+            color: #aeb4bc;
+            font-size: 13px;
+        }
+
+        .selected-name {
+            margin-top: 4px;
+            overflow-wrap: anywhere;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
         label {
             display: block;
-            margin-top: 18px;
             margin-bottom: 7px;
             font-weight: bold;
         }
 
         input {
-            width: 100%;
-            padding: 13px;
             border: 1px solid #4a5059;
-            border-radius: 9px;
             background: #1a1d21;
-            color: white;
-            font-size: 16px;
+            color: #ffffff;
         }
 
-        button {
-            width: 100%;
-            margin-top: 24px;
-            padding: 14px;
-            border: none;
-            border-radius: 9px;
-            background: #198754;
-            color: white;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
+        .password-wrapper {
+            position: relative;
         }
 
-        .info {
-            margin-top: 20px;
-            padding: 12px;
-            border-radius: 9px;
-            background: #323840;
-            color: #d7dbe0;
-            font-size: 14px;
+        .password-wrapper input {
+            padding-right: 55px;
+        }
+
+        .toggle-password {
+            position: absolute;
+            top: 0;
+            right: 0;
+
+            width: 52px;
+            min-height: 48px;
+            padding: 0;
+
+            background: transparent;
+            color: #ffffff;
+            font-size: 20px;
+        }
+
+        .hint {
+            margin-top: 7px;
+            color: #9da4ad;
+            font-size: 13px;
+        }
+
+        .local-mode-box {
+            margin-top: 26px;
+            padding-top: 24px;
+            border-top: 1px solid #444a53;
+        }
+
+        .local-mode-box h2 {
+            margin-bottom: 8px;
+        }
+
+        .local-mode-button {
+            margin-top: 10px;
+            border: 1px solid #0dcaf0;
+            background: #12343b;
+            color: #bff5ff;
+        }
+
+        .local-mode-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+
+            vertical-align: middle;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 500px) {
+            body {
+                padding: 12px;
+            }
+
+            .container {
+                margin-top: 8px;
+            }
+
+            .card {
+                padding: 19px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 
 <body>
 
-    <div class="card">
+    <div class="container">
 
-        <h1>🌱 HydroControl</h1>
+        <div class="card">
 
-        <p>
-            Configurá la red WiFi donde quedará conectado
-            el controlador.
-        </p>
+            <h1>🌱 HydroControl</h1>
 
-        <form method="POST" action="/save-wifi">
+            <p>
+                Seleccioná la red WiFi donde quedará conectado
+                el controlador.
+            </p>
 
-            <label for="ssid">
-                Nombre de la red WiFi
-            </label>
+            <button
+                type="button"
+                class="refresh-button"
+                id="scanButton">
 
-            <input
-                id="ssid"
-                name="ssid"
-                type="text"
-                autocomplete="off"
-                required>
+                Buscar redes cercanas
 
-            <label for="password">
-                Contraseña
-            </label>
-
-            <input
-                id="password"
-                name="password"
-                type="password">
-
-            <button type="submit">
-                Guardar y conectar
             </button>
 
-        </form>
+            <div
+                id="scanMessage"
+                class="message">
 
-        <div class="info">
-            HydroControl guardará esta red y se conectará
-            automáticamente cada vez que reciba alimentación.
+                Buscando redes WiFi cercanas...
+
+            </div>
+
+            <div
+                id="networkList"
+                class="network-list">
+            </div>
+
+            <div
+                id="selectedNetworkSection"
+                class="selected-network">
+
+                <h2>Conectar a la red</h2>
+
+                <div class="selected-box">
+
+                    <div class="selected-label">
+                        Red seleccionada
+                    </div>
+
+                    <div
+                        class="selected-name"
+                        id="selectedNetworkName">
+                    </div>
+
+                </div>
+
+                <form
+                    method="POST"
+                    action="/save-wifi"
+                    id="wifiForm">
+
+                    <input
+                        id="ssid"
+                        name="ssid"
+                        type="hidden">
+
+                    <label for="password">
+                        Contraseña
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            autocomplete="new-password"
+                            placeholder="Ingresá la contraseña">
+
+                        <button
+                            type="button"
+                            class="toggle-password"
+                            id="togglePassword"
+                            aria-label="Mostrar contraseña">
+
+                            👁
+
+                        </button>
+
+                    </div>
+
+                    <div
+                        id="passwordHint"
+                        class="hint">
+
+                        Para una red abierta, dejá este campo vacío.
+
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="connect-button"
+                        id="connectButton">
+
+                        Guardar y conectar
+
+                    </button>
+
+                    <div
+                        id="connectionMessage"
+                        class="message"
+                        hidden>
+                    </div>
+
+                </form>
+
+            </div>
+
+            <div class="local-mode-box">
+
+                <h2>Usar sin una red WiFi</h2>
+
+                <p>
+                    El ESP32 creará su propia red para entrar
+                    directamente desde el celular, aunque no haya
+                    router ni conexión a Internet.
+                </p>
+
+                <button
+                    type="button"
+                    class="local-mode-button"
+                    id="localModeButton">
+
+                    Entrar en modo local
+
+                </button>
+
+                <div
+                    id="localModeMessage"
+                    class="message"
+                    hidden>
+                </div>
+
+            </div>
+
         </div>
 
     </div>
 
+    <script>
+        const scanButton =
+            document.getElementById("scanButton");
+
+        const scanMessage =
+            document.getElementById("scanMessage");
+
+        const networkList =
+            document.getElementById("networkList");
+
+        const selectedNetworkSection =
+            document.getElementById(
+                "selectedNetworkSection"
+            );
+
+        const selectedNetworkName =
+            document.getElementById(
+                "selectedNetworkName"
+            );
+
+        const ssidInput =
+            document.getElementById("ssid");
+
+        const passwordInput =
+            document.getElementById("password");
+
+        const passwordHint =
+            document.getElementById("passwordHint");
+
+        const togglePassword =
+            document.getElementById("togglePassword");
+
+        const wifiForm =
+            document.getElementById("wifiForm");
+
+        const connectButton =
+            document.getElementById("connectButton");
+
+        const connectionMessage =
+            document.getElementById(
+                "connectionMessage"
+            );
+
+        const localModeButton =
+            document.getElementById(
+                "localModeButton"
+            );
+
+        const localModeMessage =
+            document.getElementById(
+                "localModeMessage"
+            );
+
+        function getSignalText(rssi) {
+            if (rssi >= -50) {
+                return "Señal excelente";
+            }
+
+            if (rssi >= -60) {
+                return "Señal buena";
+            }
+
+            if (rssi >= -70) {
+                return "Señal regular";
+            }
+
+            return "Señal débil";
+        }
+
+        function selectNetwork(network, button) {
+            document
+                .querySelectorAll(".network-button")
+                .forEach(item => {
+                    item.classList.remove("selected");
+                });
+
+            button.classList.add("selected");
+
+            ssidInput.value = network.ssid;
+
+            selectedNetworkName.textContent =
+                network.ssid;
+
+            passwordInput.value = "";
+
+            passwordInput.required =
+                network.secure === true;
+
+            passwordInput.placeholder =
+                network.secure
+                    ? "Ingresá la contraseña"
+                    : "Esta red no necesita contraseña";
+
+            passwordHint.textContent =
+                network.secure
+                    ? "Ingresá la contraseña de esta red."
+                    : "La red seleccionada es abierta.";
+
+            selectedNetworkSection.classList.add(
+                "visible"
+            );
+
+            setTimeout(() => {
+                selectedNetworkSection.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+
+                if (network.secure) {
+                    passwordInput.focus();
+                }
+            }, 100);
+        }
+
+        function createNetworkButton(network) {
+            const button =
+                document.createElement("button");
+
+            button.type = "button";
+            button.className = "network-button";
+
+            const info =
+                document.createElement("div");
+
+            info.className = "network-info";
+
+            const name =
+                document.createElement("div");
+
+            name.className = "network-name";
+            name.textContent = network.ssid;
+
+            const details =
+                document.createElement("div");
+
+            details.className = "network-details";
+
+            details.textContent =
+                getSignalText(network.rssi) +
+                " · " +
+                network.rssi +
+                " dBm · " +
+                (
+                    network.secure
+                        ? "Protegida"
+                        : "Abierta"
+                );
+
+            const icon =
+                document.createElement("div");
+
+            icon.className = "network-icon";
+
+            icon.textContent =
+                network.secure ? "🔒" : "📶";
+
+            info.appendChild(name);
+            info.appendChild(details);
+
+            button.appendChild(info);
+            button.appendChild(icon);
+
+            button.addEventListener("click", () => {
+                selectNetwork(network, button);
+            });
+
+            return button;
+        }
+
+        async function scanNetworks() {
+            scanButton.disabled = true;
+
+            scanButton.innerHTML =
+                '<span class="spinner"></span>' +
+                'Buscando...';
+
+            scanMessage.classList.remove("error");
+
+            scanMessage.textContent =
+                "Buscando redes WiFi cercanas...";
+
+            networkList.innerHTML = "";
+
+            selectedNetworkSection.classList.remove(
+                "visible"
+            );
+
+            ssidInput.value = "";
+            passwordInput.value = "";
+
+            try {
+                const response = await fetch(
+                    "/api/wifi/scan",
+                    {
+                        cache: "no-store"
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(
+                        "No se pudo realizar la búsqueda."
+                    );
+                }
+
+                const networks =
+                    await response.json();
+
+                const uniqueNetworks = [];
+                const registeredSsids = new Set();
+
+                networks
+                    .sort((a, b) => b.rssi - a.rssi)
+                    .forEach(network => {
+                        const ssid =
+                            String(
+                                network.ssid || ""
+                            ).trim();
+
+                        if (
+                            !ssid ||
+                            registeredSsids.has(ssid)
+                        ) {
+                            return;
+                        }
+
+                        registeredSsids.add(ssid);
+
+                        uniqueNetworks.push({
+                            ssid: ssid,
+                            rssi: Number(network.rssi),
+                            secure: Boolean(
+                                network.secure
+                            )
+                        });
+                    });
+
+                if (uniqueNetworks.length === 0) {
+                    scanMessage.textContent =
+                        "No se encontraron redes WiFi.";
+
+                    return;
+                }
+
+                scanMessage.textContent =
+                    "Seleccioná una de las " +
+                    uniqueNetworks.length +
+                    " redes encontradas.";
+
+                uniqueNetworks.forEach(network => {
+                    networkList.appendChild(
+                        createNetworkButton(network)
+                    );
+                });
+
+            } catch (error) {
+                console.error(
+                    "Error buscando redes:",
+                    error
+                );
+
+                scanMessage.textContent =
+                    "No se pudieron buscar las redes. " +
+                    "Presioná el botón para intentar nuevamente.";
+
+                scanMessage.classList.add("error");
+
+            } finally {
+                scanButton.disabled = false;
+
+                scanButton.textContent =
+                    "Buscar nuevamente";
+            }
+        }
+
+        togglePassword.addEventListener(
+            "click",
+            () => {
+                const isHidden =
+                    passwordInput.type === "password";
+
+                passwordInput.type =
+                    isHidden ? "text" : "password";
+
+                togglePassword.textContent =
+                    isHidden ? "🙈" : "👁";
+            }
+        );
+
+        wifiForm.addEventListener(
+            "submit",
+            async event => {
+                event.preventDefault();
+
+                if (!ssidInput.value) {
+                    scanMessage.textContent =
+                        "Primero seleccioná una red.";
+
+                    scanMessage.classList.add("error");
+
+                    return;
+                }
+
+                connectionMessage.hidden = false;
+
+                connectionMessage.classList.remove(
+                    "error",
+                    "success"
+                );
+
+                connectionMessage.textContent =
+                    "Probando la conexión WiFi. " +
+                    "Esto puede tardar unos segundos...";
+
+                connectButton.disabled = true;
+                scanButton.disabled = true;
+                passwordInput.disabled = true;
+
+                connectButton.innerHTML =
+                    '<span class="spinner"></span>' +
+                    'Conectando...';
+
+                const data = new URLSearchParams({
+                    ssid: ssidInput.value,
+                    password: passwordInput.value
+                });
+
+                try {
+                    const response = await fetch(
+                        "/save-wifi",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/x-www-form-urlencoded"
+                            },
+
+                            body: data.toString()
+                        }
+                    );
+
+                    const result =
+                        await response.json();
+
+                    if (
+                        !response.ok ||
+                        !result.success
+                    )
+                    {
+                        throw new Error(
+                            result.message ||
+                            "No se pudo conectar."
+                        );
+                    }
+
+                    connectionMessage.classList.add(
+                        "success"
+                    );
+
+                    connectionMessage.textContent =
+                        "✅ Conexión exitosa a \"" +
+                        result.ssid +
+                        "\". HydroControl se reiniciará. " +
+                        "Después conectate a esa misma red y abrí " +
+                        "hydrocontrol.local.";
+
+                    connectButton.innerHTML =
+                        "Conectado correctamente";
+
+                } catch (error) {
+                    console.error(
+                        "Error conectando al WiFi:",
+                        error
+                    );
+
+                    connectionMessage.classList.add(
+                        "error"
+                    );
+
+                    connectionMessage.textContent =
+                        "❌ " + error.message;
+
+                    passwordInput.value = "";
+                    passwordInput.disabled = false;
+                    passwordInput.focus();
+
+                    connectButton.disabled = false;
+                    scanButton.disabled = false;
+
+                    connectButton.textContent =
+                        "Volver a intentar";
+                }
+            }
+        );
+
+        localModeButton.addEventListener(
+            "click",
+            async () => {
+                localModeButton.disabled = true;
+                scanButton.disabled = true;
+
+                localModeMessage.hidden = false;
+                localModeMessage.classList.remove(
+                    "error",
+                    "success"
+                );
+
+                localModeMessage.textContent =
+                    "Preparando el acceso local...";
+
+                localModeButton.innerHTML =
+                    '<span class="spinner"></span>' +
+                    'Activando...';
+
+                try {
+                    const response = await fetch(
+                        "/use-local-mode",
+                        {
+                            method: "POST"
+                        }
+                    );
+
+                    const result =
+                        await response.json();
+
+                    if (
+                        !response.ok ||
+                        !result.success
+                    ) {
+                        throw new Error(
+                            result.message ||
+                            "No se pudo activar el modo local."
+                        );
+                    }
+
+                    localModeMessage.classList.add(
+                        "success"
+                    );
+
+                    localModeMessage.textContent =
+                        "✅ Modo local activado. El ESP32 se " +
+                        "reiniciará. Después conectate a la red " +
+                        "HydroControl con la contraseña " +
+                        "hydrocontrol y abrí 192.168.4.1.";
+
+                    localModeButton.textContent =
+                        "Modo local activado";
+
+                } catch (error) {
+                    console.error(
+                        "Error activando modo local:",
+                        error
+                    );
+
+                    localModeMessage.classList.add(
+                        "error"
+                    );
+
+                    localModeMessage.textContent =
+                        "❌ " + error.message;
+
+                    localModeButton.disabled = false;
+                    scanButton.disabled = false;
+
+                    localModeButton.textContent =
+                        "Volver a intentar";
+                }
+            }
+        );
+
+        scanButton.addEventListener(
+            "click",
+            scanNetworks
+        );
+
+        scanNetworks();
+    </script>
+
 </body>
 </html>
 )rawliteral";
+
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
 
     server.send(
         200,
@@ -434,14 +1281,120 @@ void handleWifiSetupPage()
     );
 }
 
+bool testWifiCredentials(
+    const String& ssid,
+    const String& password,
+    String& errorMessage
+)
+{
+    Serial.println();
+    Serial.print("Probando conexión a: ");
+    Serial.println(ssid);
+
+    // Mantiene HydroControl-Setup activo mientras prueba
+    // la conexión al router.
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.setAutoReconnect(false);
+
+    // Desconecta solamente la parte estación.
+    // No elimina ni apaga el punto de acceso.
+    WiFi.disconnect(false, false);
+
+    delay(300);
+
+    WiFi.begin(
+        ssid.c_str(),
+        password.c_str()
+    );
+
+    const unsigned long timeoutMs = 20000;
+    const unsigned long startTime = millis();
+
+    while (
+        WiFi.status() != WL_CONNECTED &&
+        millis() - startTime < timeoutMs
+    )
+    {
+        wl_status_t status = WiFi.status();
+
+        if (
+            status == WL_CONNECT_FAILED ||
+            status == WL_NO_SSID_AVAIL
+        )
+        {
+            break;
+        }
+
+        delay(250);
+    }
+
+    wl_status_t finalStatus = WiFi.status();
+
+    if (finalStatus == WL_CONNECTED)
+    {
+        Serial.println(
+            "Conexión WiFi comprobada correctamente."
+        );
+
+        Serial.print("Nueva IP: ");
+        Serial.println(WiFi.localIP());
+
+        return true;
+    }
+
+    switch (finalStatus)
+    {
+        case WL_NO_SSID_AVAIL:
+            errorMessage =
+                "La red seleccionada ya no está disponible. "
+                "Volvé a buscar las redes cercanas.";
+            break;
+
+        case WL_CONNECT_FAILED:
+            errorMessage =
+                "Contraseña incorrecta. "
+                "Escribila nuevamente.";
+            break;
+
+        case WL_CONNECTION_LOST:
+            errorMessage =
+                "Se perdió la conexión durante la prueba. "
+                "Intentá nuevamente.";
+            break;
+
+        default:
+            errorMessage =
+                "No se pudo conectar. Revisá la contraseña "
+                "e intentá nuevamente.";
+            break;
+    }
+
+    Serial.print("Falló la conexión: ");
+    Serial.println(errorMessage);
+
+    // Mantiene el portal HydroControl-Setup funcionando.
+    WiFi.disconnect(false, false);
+    WiFi.mode(WIFI_AP_STA);
+
+    delay(200);
+
+    return false;
+}
+
 void handleSaveWifiForm()
 {
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
+
     if (!server.hasArg("ssid"))
     {
         server.send(
             400,
-            "text/plain; charset=utf-8",
-            "Falta el nombre de la red WiFi."
+            "application/json",
+            "{\"success\":false,"
+            "\"message\":\"Primero seleccioná una red WiFi.\"}"
         );
 
         return;
@@ -456,76 +1409,152 @@ void handleSaveWifiForm()
     {
         server.send(
             400,
-            "text/plain; charset=utf-8",
-            "El nombre de la red está vacío."
+            "application/json",
+            "{\"success\":false,"
+            "\"message\":\"La red seleccionada no es válida.\"}"
         );
 
         return;
     }
 
-    saveWifiCredentials(ssid, password);
+    String connectionError;
 
-    String html = R"rawliteral(
-<!DOCTYPE html>
-<html lang="es">
+    bool connected = testWifiCredentials(
+        ssid,
+        password,
+        connectionError
+    );
 
-<head>
-    <meta charset="UTF-8">
+    if (!connected)
+    {
+        String json = "{";
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0">
+        json += "\"success\":false,";
+        json += "\"message\":\"";
+        json += escapeJson(connectionError);
+        json += "\"";
 
-    <title>WiFi guardado</title>
+        json += "}";
 
-    <style>
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #1a1d21;
-            color: white;
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
+        server.send(
+            422,
+            "application/json",
+            json
+        );
 
-        .card {
-            margin: 20px;
-            padding: 30px;
-            max-width: 420px;
-            background: #252a31;
-            border-radius: 18px;
-        }
-    </style>
-</head>
+        return;
+    }
 
-<body>
+    // Al conectarse a un router, sale del modo local.
+    saveLocalAccessMode(false);
 
-    <div class="card">
+    // Guarda las credenciales solamente después de comprobar
+    // que el ESP32 logró conectarse correctamente.
+    saveWifiCredentials(
+        ssid,
+        password
+    );
 
-        <h2>WiFi guardado correctamente</h2>
+    String json = "{";
 
-        <p>
-            HydroControl se reiniciará e intentará conectarse
-            a la nueva red.
-        </p>
+    json += "\"success\":true,";
+    json += "\"message\":\"Conexión WiFi exitosa.\",";
 
-    </div>
+    json += "\"ssid\":\"";
+    json += escapeJson(ssid);
+    json += "\",";
 
-</body>
-</html>
-)rawliteral";
+    json += "\"ip\":\"";
+    json += WiFi.localIP().toString();
+    json += "\",";
+
+    json += "\"localUrl\":\"http://hydrocontrol.local\"";
+
+    json += "}";
 
     server.send(
         200,
-        "text/html; charset=utf-8",
-        html
+        "application/json",
+        json
     );
 
-    delay(1800);
-    ESP.restart();
+    // El reinicio se hace desde loop() para darle tiempo al
+    // navegador a mostrar el cartel de conexión exitosa.
+    restartPending = true;
+    restartRequestedAt = millis();
+}
+
+void handleUseLocalMode()
+{
+    saveLocalAccessMode(true);
+
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
+
+    server.send(
+        200,
+        "application/json",
+        "{\"success\":true,"
+        "\"message\":\"Modo local activado. Reiniciando...\"}"
+    );
+
+    restartPending = true;
+    restartRequestedAt = millis();
+}
+
+void startLocalAccessMode()
+{
+    wifiSetupMode = false;
+    localAccessMode = true;
+
+    Serial.println();
+    Serial.println(
+        "Iniciando modo local sin router..."
+    );
+
+    WiFi.disconnect(true);
+    delay(200);
+
+    // AP mantiene la conexión directa con el celular y
+    // STA permite buscar redes desde la sección WiFi.
+    WiFi.mode(WIFI_AP_STA);
+
+    bool accessPointStarted = WiFi.softAP(
+        LOCAL_WIFI_NAME,
+        LOCAL_WIFI_PASSWORD
+    );
+
+    if (!accessPointStarted)
+    {
+        Serial.println(
+            "Error al crear la red local HydroControl."
+        );
+
+        return;
+    }
+
+    IPAddress localIp = WiFi.softAPIP();
+
+    dnsServer.start(
+        DNS_PORT,
+        "*",
+        localIp
+    );
+
+    Serial.println(
+        "Modo local iniciado correctamente."
+    );
+
+    Serial.print("Red: ");
+    Serial.println(LOCAL_WIFI_NAME);
+
+    Serial.print("Contraseña: ");
+    Serial.println(LOCAL_WIFI_PASSWORD);
+
+    Serial.print("Aplicación: http://");
+    Serial.println(localIp);
 }
 
 void startWifiSetupMode()
@@ -540,7 +1569,7 @@ void startWifiSetupMode()
     WiFi.disconnect(true);
     delay(200);
 
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(WIFI_AP_STA);
 
     bool accessPointStarted = WiFi.softAP(
         SETUP_WIFI_NAME,
@@ -756,6 +1785,7 @@ void handleSaveConfig()
 void handleGetWifiStatus()
 {
     String savedSsid = loadWifiSsid();
+    String savedPassword = loadWifiPassword();
 
     String json = "{";
 
@@ -769,9 +1799,32 @@ void handleGetWifiStatus()
         ? "true"
         : "false";
 
+    json += ",\"localMode\":";
+    json += localAccessMode
+        ? "true"
+        : "false";
+
+    json += ",\"hasSavedCredentials\":";
+    json += savedSsid.isEmpty()
+        ? "false"
+        : "true";
+
+    json += ",\"hasSavedPassword\":";
+    json += savedPassword.isEmpty()
+        ? "false"
+        : "true";
+
+    json += ",\"savedSsid\":\"";
+    json += escapeJson(savedSsid);
+    json += "\"";
+
     json += ",\"ssid\":\"";
 
-    if (WiFi.status() == WL_CONNECTED)
+    if (localAccessMode)
+    {
+        json += escapeJson(LOCAL_WIFI_NAME);
+    }
+    else if (WiFi.status() == WL_CONNECTED)
     {
         json += escapeJson(WiFi.SSID());
     }
@@ -784,7 +1837,7 @@ void handleGetWifiStatus()
 
     json += ",\"ip\":\"";
 
-    if (wifiSetupMode)
+    if (wifiSetupMode || localAccessMode)
     {
         json += WiFi.softAPIP().toString();
     }
@@ -869,11 +1922,16 @@ void handleScanWifi()
 
 void handleSaveWifiApi()
 {
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
+
     if (!server.hasArg("ssid"))
     {
         server.send(
             400,
-            "application/json",
+            "application/json; charset=utf-8",
             "{\"success\":false,"
             "\"message\":\"Falta el nombre del WiFi\"}"
         );
@@ -890,40 +1948,338 @@ void handleSaveWifiApi()
     {
         server.send(
             400,
-            "application/json",
+            "application/json; charset=utf-8",
             "{\"success\":false,"
-            "\"message\":\"El nombre del WiFi está vacío\"}"
+            "\"message\":\"La red seleccionada no es válida\"}"
         );
 
         return;
     }
 
+    // Cuando la app está abierta desde el punto de acceso local
+    // o desde HydroControl-Setup, podemos comprobar la clave sin
+    // cortar la conexión entre el celular y el ESP32.
+    if (localAccessMode || wifiSetupMode)
+    {
+        String connectionError;
+
+        bool connected = testWifiCredentials(
+            ssid,
+            password,
+            connectionError
+        );
+
+        if (!connected)
+        {
+            String json = "{";
+            json += "\"success\":false,";
+            json += "\"message\":\"";
+            json += escapeJson(connectionError);
+            json += "\"";
+            json += "}";
+
+            server.send(
+                422,
+                "application/json; charset=utf-8",
+                json
+            );
+
+            return;
+        }
+    }
+
+    saveLocalAccessMode(false);
     saveWifiCredentials(ssid, password);
+
+    String json = "{";
+    json += "\"success\":true,";
+    json += "\"message\":\"WiFi comprobado y guardado. Reiniciando...\",";
+    json += "\"ssid\":\"";
+    json += escapeJson(ssid);
+    json += "\"";
+    json += "}";
 
     server.send(
         200,
-        "application/json",
-        "{\"success\":true,"
-        "\"message\":\"WiFi guardado. Reiniciando...\"}"
+        "application/json; charset=utf-8",
+        json
     );
 
-    delay(1500);
-    ESP.restart();
+    // El reinicio se programa desde loop() para garantizar
+    // que el navegador reciba la respuesta completa.
+    restartPending = true;
+    restartRequestedAt = millis();
 }
 
 void handleResetWifi()
 {
     clearWifiCredentials();
 
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
+
     server.send(
         200,
-        "application/json",
+        "application/json; charset=utf-8",
         "{\"success\":true,"
         "\"message\":\"Credenciales eliminadas. Reiniciando...\"}"
     );
 
-    delay(1500);
-    ESP.restart();
+    // Evita bloquear el servidor con delay() justo después
+    // de responder la petición.
+    restartPending = true;
+    restartRequestedAt = millis();
+}
+
+void handleDisconnectWifi()
+{
+    String savedSsid = loadWifiSsid();
+
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
+
+    if (savedSsid.isEmpty())
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"No hay una red WiFi guardada.\"}"
+        );
+
+        return;
+    }
+
+    // Conserva el SSID y la contraseña, pero evita que
+    // el ESP32 se conecte automáticamente al router.
+    // En el siguiente arranque levantará la red local.
+    saveLocalAccessMode(true);
+
+    String json = "{";
+    json += "\"success\":true,";
+    json += "\"message\":\"Desconectando del router. La red guardada se conservará.\",";
+    json += "\"localNetwork\":\"";
+    json += escapeJson(LOCAL_WIFI_NAME);
+    json += "\",";
+    json += "\"localUrl\":\"http://192.168.4.1\"";
+    json += "}";
+
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+
+    Serial.println(
+        "Solicitud de desconexión recibida. "
+        "El ESP32 reiniciará en modo local."
+    );
+
+    // El reinicio se hace desde loop(), luego de que el
+    // navegador haya recibido el JSON completo.
+    restartPending = true;
+    restartRequestedAt = millis();
+}
+
+void handleConnectSavedWifi()
+{
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
+
+    String requestedSsid = server.arg("ssid");
+    String savedSsid = loadWifiSsid();
+    String savedPassword = loadWifiPassword();
+
+    requestedSsid.trim();
+
+    if (savedSsid.isEmpty())
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"No hay credenciales WiFi guardadas.\"}"
+        );
+
+        return;
+    }
+
+    if (requestedSsid.isEmpty() || requestedSsid != savedSsid)
+    {
+        server.send(
+            409,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"La red seleccionada no coincide con la red guardada.\"}"
+        );
+
+        return;
+    }
+
+    if (savedPassword.isEmpty())
+    {
+        server.send(
+            409,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"La contraseña guardada fue eliminada. Ingresá una nueva contraseña.\"}"
+        );
+
+        return;
+    }
+
+    if (
+        WiFi.status() == WL_CONNECTED &&
+        !localAccessMode &&
+        !wifiSetupMode &&
+        WiFi.SSID() == savedSsid
+    )
+    {
+        String json = "{";
+        json += "\"success\":true,";
+        json += "\"alreadyConnected\":true,";
+        json += "\"message\":\"HydroControl ya está conectado a esta red.\",";
+        json += "\"ssid\":\"";
+        json += escapeJson(savedSsid);
+        json += "\"";
+        json += "}";
+
+        server.send(
+            200,
+            "application/json; charset=utf-8",
+            json
+        );
+
+        return;
+    }
+
+    // En modo local el celular continúa conectado al AP del ESP32,
+    // por eso podemos probar la contraseña almacenada y devolver un
+    // mensaje claro sin cerrar la página si la red no responde.
+    if (localAccessMode || wifiSetupMode)
+    {
+        String connectionError;
+
+        bool connected = testWifiCredentials(
+            savedSsid,
+            savedPassword,
+            connectionError
+        );
+
+        if (!connected)
+        {
+            String json = "{";
+            json += "\"success\":false,";
+            json += "\"message\":\"";
+            json += escapeJson(connectionError);
+            json += "\"";
+            json += "}";
+
+            server.send(
+                422,
+                "application/json; charset=utf-8",
+                json
+            );
+
+            return;
+        }
+    }
+
+    saveLocalAccessMode(false);
+
+    String json = "{";
+    json += "\"success\":true,";
+    json += "\"alreadyConnected\":false,";
+    json += "\"message\":\"Conexión comprobada. Reiniciando HydroControl...\",";
+    json += "\"ssid\":\"";
+    json += escapeJson(savedSsid);
+    json += "\"";
+    json += "}";
+
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+
+    Serial.print(
+        "Conexión solicitada usando las credenciales guardadas de: "
+    );
+    Serial.println(savedSsid);
+
+    restartPending = true;
+    restartRequestedAt = millis();
+}
+
+void handleDeleteSavedWifiPassword()
+{
+    server.sendHeader(
+        "Cache-Control",
+        "no-store"
+    );
+
+    String savedSsid = loadWifiSsid();
+    String savedPassword = loadWifiPassword();
+
+    if (savedSsid.isEmpty())
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"No hay una red WiFi guardada.\"}"
+        );
+
+        return;
+    }
+
+    if (savedPassword.isEmpty())
+    {
+        String json = "{";
+        json += "\"success\":true,";
+        json += "\"alreadyDeleted\":true,";
+        json += "\"message\":\"La contraseña ya estaba eliminada.\",";
+        json += "\"savedSsid\":\"";
+        json += escapeJson(savedSsid);
+        json += "\"";
+        json += "}";
+
+        server.send(
+            200,
+            "application/json; charset=utf-8",
+            json
+        );
+
+        return;
+    }
+
+    clearWifiPassword();
+
+    String json = "{";
+    json += "\"success\":true,";
+    json += "\"alreadyDeleted\":false,";
+    json += "\"message\":\"Contraseña guardada eliminada. El nombre de la red se conserva.\",";
+    json += "\"savedSsid\":\"";
+    json += escapeJson(savedSsid);
+    json += "\"";
+    json += "}";
+
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+
+    Serial.print(
+        "Contraseña WiFi eliminada. SSID conservado: "
+    );
+    Serial.println(savedSsid);
 }
 
 // ======================================================
@@ -980,13 +2336,40 @@ String getContentType(const String& path)
 
 void handleFileRequest()
 {
+    String path = server.uri();
+
+    // Las APIs siempre deben responder JSON. Así el frontend
+    // nunca intenta interpretar "Archivo no encontrado" o una
+    // página HTML como si fueran JSON.
+    if (path.startsWith("/api/"))
+    {
+        String json = "{";
+        json += "\"success\":false,";
+        json += "\"message\":\"Ruta API no encontrada o método incorrecto.\",";
+        json += "\"path\":\"";
+        json += escapeJson(path);
+        json += "\"";
+        json += "}";
+
+        server.sendHeader(
+            "Cache-Control",
+            "no-store"
+        );
+
+        server.send(
+            404,
+            "application/json; charset=utf-8",
+            json
+        );
+
+        return;
+    }
+
     if (wifiSetupMode)
     {
         handleWifiSetupPage();
         return;
     }
-
-    String path = server.uri();
 
     if (path == "/")
     {
@@ -995,13 +2378,22 @@ void handleFileRequest()
 
     if (!LittleFS.exists(path))
     {
-        server.send(
-            404,
-            "text/plain; charset=utf-8",
-            "Archivo no encontrado"
-        );
+        // En modo local se usa index.html como página de
+        // respaldo para rutas visuales, pero nunca para APIs.
+        if (localAccessMode && LittleFS.exists("/index.html"))
+        {
+            path = "/index.html";
+        }
+        else
+        {
+            server.send(
+                404,
+                "text/plain; charset=utf-8",
+                "Archivo no encontrado"
+            );
 
-        return;
+            return;
+        }
     }
 
     File file = LittleFS.open(path, "r");
@@ -1016,6 +2408,15 @@ void handleFileRequest()
 
         return;
     }
+
+    server.sendHeader(
+        "Cache-Control",
+        path.endsWith(".html") ||
+        path.endsWith(".js") ||
+        path.endsWith(".css")
+            ? "no-cache"
+            : "public, max-age=86400"
+    );
 
     server.streamFile(
         file,
@@ -1074,9 +2475,33 @@ void registerServerRoutes()
     );
 
     server.on(
+        "/api/wifi/disconnect",
+        HTTP_POST,
+        handleDisconnectWifi
+    );
+
+    server.on(
+        "/api/wifi/connect-saved",
+        HTTP_POST,
+        handleConnectSavedWifi
+    );
+
+    server.on(
+        "/api/wifi/delete-password",
+        HTTP_POST,
+        handleDeleteSavedWifiPassword
+    );
+
+    server.on(
         "/save-wifi",
         HTTP_POST,
         handleSaveWifiForm
+    );
+
+    server.on(
+        "/use-local-mode",
+        HTTP_POST,
+        handleUseLocalMode
     );
 
     server.onNotFound(
@@ -1086,7 +2511,7 @@ void registerServerRoutes()
 
 bool startMdns()
 {
-    if (wifiSetupMode)
+    if (wifiSetupMode || localAccessMode)
     {
         return false;
     }
@@ -1208,12 +2633,16 @@ void setup()
 
     registerServerRoutes();
 
-    if (!connectToSavedWifi())
+    if (loadLocalAccessMode())
+    {
+        startLocalAccessMode();
+    }
+    else if (!connectToSavedWifi())
     {
         startWifiSetupMode();
     }
 
- server.begin();
+    server.begin();
 
 Serial.println(
     "Servidor web iniciado."
@@ -1223,6 +2652,20 @@ if (wifiSetupMode)
 {
     Serial.println(
         "Conectate a HydroControl-Setup"
+    );
+
+    Serial.println(
+        "Abrí: http://192.168.4.1"
+    );
+}
+else if (localAccessMode)
+{
+    Serial.println(
+        "Conectate a la red HydroControl"
+    );
+
+    Serial.println(
+        "Contraseña: hydrocontrol"
     );
 
     Serial.println(
@@ -1245,7 +2688,7 @@ else
         "Nombre permanente: http://hydrocontrol.local"
     );
 }
-};
+}
 
 // ======================================================
 // LOOP
@@ -1253,12 +2696,20 @@ else
 
 void loop()
 {
-    if (wifiSetupMode)
+    if (wifiSetupMode || localAccessMode)
     {
         dnsServer.processNextRequest();
     }
 
     server.handleClient();
+
+    if (
+        restartPending &&
+        millis() - restartRequestedAt >= RESTART_DELAY_MS
+    )
+    {
+        ESP.restart();
+    }
 
     delay(2);
 }
