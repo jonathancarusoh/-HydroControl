@@ -1,0 +1,320 @@
+<div class="container-fluid profiles-page">
+
+    <div class="profiles-page-heading mb-4">
+        <div>
+            <span class="profiles-eyebrow">CONFIGURACIONES GUARDADAS</span>
+
+            <h2 class="mb-1">
+                <i class="bi bi-bookmarks"></i>
+                Perfiles de cultivo
+            </h2>
+
+            <p class="text-secondary mb-0">
+                Guardá configuraciones completas y aplicalas cuando cambie la etapa del cultivo.
+            </p>
+        </div>
+
+        <button
+            type="button"
+            class="btn btn-success profiles-new-button"
+            id="newProfileButton">
+
+            <i class="bi bi-plus-lg"></i>
+            Nuevo perfil
+        </button>
+    </div>
+
+    <section class="card profiles-active-panel mb-4">
+        <div class="card-body">
+            <div class="profiles-active-layout">
+                <span class="profiles-active-icon">
+                    <i class="bi bi-check2-circle"></i>
+                </span>
+
+                <div class="profiles-active-copy">
+                    <small>PERFIL ACTIVO</small>
+                    <h4 class="mb-1" id="activeProfileName">
+                        Ningún perfil aplicado
+                    </h4>
+                    <p class="mb-0" id="activeProfileDescription">
+                        La configuración actual fue ajustada manualmente.
+                    </p>
+                </div>
+
+                <span class="profiles-count-badge" id="profilesCountBadge">
+                    0 / 10
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <div
+        id="profilesPageMessage"
+        class="alert d-none mb-4"
+        role="alert">
+    </div>
+
+    <div class="row g-4">
+        <div class="col-12 col-xl-7">
+            <section class="card profiles-panel h-100">
+                <div class="card-body">
+                    <div class="profiles-section-heading">
+                        <div>
+                            <h5 class="card-title mb-1">
+                                Perfiles guardados
+                            </h5>
+
+                            <p class="text-secondary mb-0">
+                                Aplicá, editá, duplicá o eliminá una configuración.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="profiles-list mt-4" id="profilesList">
+                        <div class="profiles-empty-state">
+                            <span class="spinner-border spinner-border-sm"></span>
+                            Cargando perfiles...
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-12 col-xl-5">
+            <section class="card profiles-panel profiles-editor" id="profileEditorCard">
+                <div class="card-body">
+                    <div class="profiles-section-heading mb-4">
+                        <div>
+                            <span class="profiles-form-mode" id="profileFormMode">
+                                NUEVO PERFIL
+                            </span>
+
+                            <h5 class="card-title mb-1" id="profileFormTitle">
+                                Crear configuración
+                            </h5>
+
+                            <p class="text-secondary mb-0">
+                                Los valores quedan guardados en la memoria del ESP32.
+                            </p>
+                        </div>
+                    </div>
+
+                    <form id="profileForm" novalidate>
+                        <input type="hidden" id="profileId" value="-1">
+
+                        <div class="mb-4">
+                            <label for="profileName" class="form-label">
+                                Nombre del perfil
+                            </label>
+
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="profileName"
+                                maxlength="32"
+                                placeholder="Ejemplo: Vegetativo"
+                                autocomplete="off"
+                                required>
+                        </div>
+
+                        <div class="profiles-form-block">
+                            <div class="profiles-form-block-title">
+                                <span><i class="bi bi-droplet-half"></i></span>
+                                Configuración de pH
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label for="profileTargetPh" class="form-label">
+                                        Objetivo
+                                    </label>
+
+                                    <input
+                                        type="number"
+                                        class="form-control"
+                                        id="profileTargetPh"
+                                        min="4"
+                                        max="8"
+                                        step="0.01"
+                                        required>
+                                </div>
+
+                                <div class="col-6">
+                                    <label for="profilePhTolerance" class="form-label">
+                                        Tolerancia
+                                    </label>
+
+                                    <input
+                                        type="number"
+                                        class="form-control"
+                                        id="profilePhTolerance"
+                                        min="0.01"
+                                        max="1"
+                                        step="0.01"
+                                        required>
+                                </div>
+
+                                <div class="col-12 col-sm-6">
+                                    <label for="profileDoseSeconds" class="form-label">
+                                        Duración de dosis
+                                    </label>
+
+                                    <div class="input-group">
+                                        <input
+                                            type="number"
+                                            class="form-control"
+                                            id="profileDoseSeconds"
+                                            min="0.1"
+                                            max="30"
+                                            step="0.1"
+                                            required>
+
+                                        <span class="input-group-text">seg</span>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-sm-6">
+                                    <label for="profileDoseInterval" class="form-label">
+                                        Intervalo
+                                    </label>
+
+                                    <div class="input-group">
+                                        <input
+                                            type="number"
+                                            class="form-control"
+                                            id="profileDoseInterval"
+                                            min="1"
+                                            max="120"
+                                            step="1"
+                                            required>
+
+                                        <span class="input-group-text">min</span>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-sm-6">
+                                    <label for="profileMaxDoses" class="form-label">
+                                        Máximo de dosis
+                                    </label>
+
+                                    <input
+                                        type="number"
+                                        class="form-control"
+                                        id="profileMaxDoses"
+                                        min="1"
+                                        max="10"
+                                        step="1"
+                                        required>
+                                </div>
+
+                                <div class="col-12 col-sm-6">
+                                    <label class="form-label d-block">
+                                        Modo automático
+                                    </label>
+
+                                    <div class="profiles-switch-box">
+                                        <span>Control de pH</span>
+
+                                        <div class="form-check form-switch m-0">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                role="switch"
+                                                id="profileAutomaticMode">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="profiles-form-block">
+                            <div class="profiles-form-block-title">
+                                <span><i class="bi bi-lightning-charge"></i></span>
+                                EC objetivo
+                            </div>
+
+                            <label for="profileTargetEc" class="form-label">
+                                Conductividad
+                            </label>
+
+                            <div class="input-group">
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="profileTargetEc"
+                                    min="0.1"
+                                    max="5"
+                                    step="0.01"
+                                    required>
+
+                                <span class="input-group-text">mS/cm</span>
+                            </div>
+                        </div>
+
+                        <div class="profiles-form-block">
+                            <div class="profiles-form-block-title">
+                                <span><i class="bi bi-lightbulb"></i></span>
+                                Horario de luz
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label for="profileLightOn" class="form-label">
+                                        Encendido
+                                    </label>
+
+                                    <input
+                                        type="time"
+                                        class="form-control"
+                                        id="profileLightOn"
+                                        required>
+                                </div>
+
+                                <div class="col-6">
+                                    <label for="profileLightOff" class="form-label">
+                                        Apagado
+                                    </label>
+
+                                    <input
+                                        type="time"
+                                        class="form-control"
+                                        id="profileLightOff"
+                                        required>
+                                </div>
+                            </div>
+
+                            <div class="profiles-photoperiod mt-3" id="profilePhotoperiod">
+                                Fotoperíodo: --
+                            </div>
+                        </div>
+
+                        <div
+                            id="profileFormMessage"
+                            class="alert d-none mt-3"
+                            role="alert">
+                        </div>
+
+                        <div class="profiles-form-actions mt-4">
+                            <button
+                                type="submit"
+                                class="btn btn-success"
+                                id="saveProfileButton">
+
+                                <i class="bi bi-floppy"></i>
+                                Guardar perfil
+                            </button>
+
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary d-none"
+                                id="cancelProfileEditButton">
+
+                                Cancelar edición
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
