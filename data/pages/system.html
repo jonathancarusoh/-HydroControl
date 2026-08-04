@@ -1,0 +1,317 @@
+<div
+    class="container-fluid system-page"
+    id="systemPageRoot">
+
+    <div class="system-page-heading">
+
+        <div>
+            <div class="system-eyebrow">
+                Diagnóstico en tiempo real
+            </div>
+
+            <h2 class="mb-1">
+                <i class="bi bi-cpu"></i>
+                Sistema ESP32
+            </h2>
+
+            <p class="text-secondary mb-0">
+                Estado del controlador, memoria, almacenamiento y conectividad.
+            </p>
+        </div>
+
+        <button
+            type="button"
+            class="btn btn-outline-light system-refresh-button"
+            id="refreshSystemButton">
+
+            <i class="bi bi-arrow-clockwise"></i>
+            Actualizar
+
+        </button>
+
+    </div>
+
+    <div
+        class="alert d-none mt-3"
+        id="systemMessage"
+        role="alert">
+    </div>
+
+    <section class="system-summary-card">
+
+        <div class="system-summary-main">
+
+            <span
+                class="system-mode-icon"
+                id="systemModeIcon">
+
+                <i class="bi bi-router"></i>
+
+            </span>
+
+            <div>
+                <small>Modo de funcionamiento</small>
+
+                <h3 id="systemModeLabel">
+                    Cargando...
+                </h3>
+
+                <span
+                    class="system-status-badge"
+                    id="systemWifiState">
+
+                    Consultando ESP32
+
+                </span>
+            </div>
+
+        </div>
+
+        <div class="system-summary-metrics">
+
+            <div>
+                <small>Tiempo encendido</small>
+                <strong id="systemUptime">---</strong>
+            </div>
+
+            <div>
+                <small>Firmware</small>
+                <strong id="systemFirmwareVersion">---</strong>
+            </div>
+
+        </div>
+
+    </section>
+
+    <div class="row g-4 mt-0">
+
+        <div class="col-xl-6">
+
+            <section class="system-panel h-100">
+
+                <div class="system-panel-heading">
+                    <span class="system-panel-icon">
+                        <i class="bi bi-memory"></i>
+                    </span>
+
+                    <div>
+                        <h5>Memoria RAM</h5>
+                        <p>Memoria dinámica disponible para el firmware.</p>
+                    </div>
+                </div>
+
+                <div class="system-stat-grid">
+
+                    <article class="system-stat-card">
+                        <small>RAM libre actual</small>
+                        <strong id="systemFreeHeap">---</strong>
+                        <span>Disponible en este momento</span>
+                    </article>
+
+                    <article class="system-stat-card">
+                        <small>RAM mínima registrada</small>
+                        <strong id="systemMinFreeHeap">---</strong>
+                        <span>Valor más bajo desde el arranque</span>
+                    </article>
+
+                </div>
+
+            </section>
+
+        </div>
+
+        <div class="col-xl-6">
+
+            <section class="system-panel h-100">
+
+                <div class="system-panel-heading">
+                    <span class="system-panel-icon">
+                        <i class="bi bi-device-ssd"></i>
+                    </span>
+
+                    <div>
+                        <h5>Almacenamiento</h5>
+                        <p>Memoria flash y espacio ocupado por la aplicación.</p>
+                    </div>
+                </div>
+
+                <div class="system-storage-row">
+                    <span>Flash total</span>
+                    <strong id="systemFlashTotal">---</strong>
+                </div>
+
+                <div class="system-storage-box">
+
+                    <div class="system-storage-header">
+                        <div>
+                            <small>LittleFS</small>
+                            <strong id="systemLittleFsSummary">---</strong>
+                        </div>
+
+                        <span id="systemLittleFsPercent">0%</span>
+                    </div>
+
+                    <div
+                        class="progress system-storage-progress"
+                        role="progressbar"
+                        aria-label="Uso de LittleFS">
+
+                        <div
+                            class="progress-bar"
+                            id="systemLittleFsProgress"
+                            style="width: 0%">
+                        </div>
+
+                    </div>
+
+                    <div class="system-storage-details">
+                        <span>
+                            Usado:
+                            <strong id="systemLittleFsUsed">---</strong>
+                        </span>
+
+                        <span>
+                            Disponible:
+                            <strong id="systemLittleFsAvailable">---</strong>
+                        </span>
+
+                        <span>
+                            Total:
+                            <strong id="systemLittleFsTotal">---</strong>
+                        </span>
+                    </div>
+
+                </div>
+
+            </section>
+
+        </div>
+
+        <div class="col-xl-7">
+
+            <section class="system-panel h-100">
+
+                <div class="system-panel-heading">
+                    <span class="system-panel-icon">
+                        <i class="bi bi-wifi"></i>
+                    </span>
+
+                    <div>
+                        <h5>Conectividad</h5>
+                        <p>Red utilizada actualmente por HydroControl.</p>
+                    </div>
+                </div>
+
+                <div class="system-detail-list">
+
+                    <div class="system-detail-row">
+                        <span>Estado WiFi</span>
+                        <strong id="systemWifiStatus">---</strong>
+                    </div>
+
+                    <div class="system-detail-row">
+                        <span>SSID</span>
+                        <strong id="systemWifiSsid">---</strong>
+                    </div>
+
+                    <div class="system-detail-row">
+                        <span>Dirección IP</span>
+                        <strong id="systemWifiIp">---</strong>
+                    </div>
+
+                    <div class="system-detail-row">
+                        <span>Señal</span>
+                        <strong id="systemWifiSignal">---</strong>
+                    </div>
+
+                    <div class="system-detail-row">
+                        <span>Acceso mDNS</span>
+
+                        <div class="system-mdns-value">
+                            <strong id="systemMdnsUrl">
+                                hydrocontrol.local
+                            </strong>
+
+                            <span
+                                class="system-mini-badge"
+                                id="systemMdnsBadge">
+                                ---
+                            </span>
+                        </div>
+                    </div>
+
+                </div>
+
+            </section>
+
+        </div>
+
+        <div class="col-xl-5">
+
+            <section class="system-panel h-100">
+
+                <div class="system-panel-heading">
+                    <span class="system-panel-icon">
+                        <i class="bi bi-info-circle"></i>
+                    </span>
+
+                    <div>
+                        <h5>Firmware y arranque</h5>
+                        <p>Información de la versión instalada.</p>
+                    </div>
+                </div>
+
+                <div class="system-detail-list">
+
+                    <div class="system-detail-row">
+                        <span>Versión</span>
+                        <strong id="systemFirmwareVersionDetail">---</strong>
+                    </div>
+
+                    <div class="system-detail-row">
+                        <span>Compilado</span>
+                        <strong id="systemCompiledAt">---</strong>
+                    </div>
+
+                    <div class="system-detail-row system-reset-reason-row">
+                        <span>Último reinicio</span>
+                        <strong id="systemResetReason">---</strong>
+                    </div>
+
+                </div>
+
+            </section>
+
+        </div>
+
+    </div>
+
+    <section class="system-restart-panel">
+
+        <div>
+            <span class="system-restart-icon">
+                <i class="bi bi-arrow-repeat"></i>
+            </span>
+
+            <div>
+                <h5>Reiniciar HydroControl</h5>
+
+                <p>
+                    Reinicia el ESP32 sin borrar perfiles, configuración ni credenciales WiFi.
+                </p>
+            </div>
+        </div>
+
+        <button
+            type="button"
+            class="btn btn-outline-warning"
+            id="restartSystemButton">
+
+            <i class="bi bi-power"></i>
+            Reiniciar ESP32
+
+        </button>
+
+    </section>
+
+</div>

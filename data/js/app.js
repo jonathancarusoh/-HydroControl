@@ -76,6 +76,10 @@ async function loadPage(page) {
                 updateProfilesPage();
                 break;
 
+            case "system":
+                updateSystemPage();
+                break;
+
             case "wifi":
                 updateWifiPage();
                 break;
