@@ -76,6 +76,14 @@ async function loadPage(page) {
                 updateProfilesPage();
                 break;
 
+            case "clock":
+                updateClockPage();
+                break;
+
+            case "events":
+                updateEventsPage();
+                break;
+
             case "system":
                 updateSystemPage();
                 break;

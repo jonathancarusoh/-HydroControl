@@ -16,6 +16,33 @@
 
     </div>
 
+    <section class="dashboard-clock-strip">
+
+        <div class="dashboard-clock-main">
+            <span class="dashboard-clock-icon">
+                <i class="bi bi-clock"></i>
+            </span>
+
+            <div class="dashboard-clock-copy">
+                <small>Hora del HydroControl</small>
+                <div class="dashboard-clock-value" id="dashboardClock">--:--:--</div>
+                <div class="dashboard-clock-date" id="dashboardClockDate">
+                    Hora no configurada
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-light-state">
+            <small>Programación de luz</small>
+            <strong id="dashboardLightState" data-state="unknown">
+                <i class="bi bi-lightbulb"></i>
+                Sin información
+            </strong>
+            <span class="dashboard-light-next" id="dashboardLightNext">---</span>
+        </div>
+
+    </section>
+
     <div class="row g-4">
 
         <div class="col-xl-3 col-lg-6">

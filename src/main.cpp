@@ -7,6 +7,9 @@
 #include <ESPmDNS.h>
 #include <esp_system.h>
 #include <esp_timer.h>
+#include <time.h>
+#include <sys/time.h>
+#include <stdlib.h>
 
 // ======================================================
 // SERVIDOR Y MEMORIA
@@ -18,6 +21,7 @@ DNSServer dnsServer;
 Preferences hydroPreferences;
 Preferences wifiPreferences;
 Preferences profilePreferences;
+Preferences clockPreferences;
 
 // ======================================================
 // CONFIGURACIÓN DEL PORTAL WIFI
@@ -30,7 +34,7 @@ const char* LOCAL_WIFI_NAME = "HydroControl";
 const char* LOCAL_WIFI_PASSWORD = "hydrocontrol";
 
 const char* MDNS_HOSTNAME = "hydrocontrol";
-const char* FIRMWARE_VERSION = "0.1.0";
+const char* FIRMWARE_VERSION = "0.2.1";
 const byte DNS_PORT = 53;
 
 bool wifiSetupMode = false;
@@ -39,6 +43,19 @@ bool restartPending = false;
 unsigned long restartRequestedAt = 0;
 
 const unsigned long RESTART_DELAY_MS = 3000;
+
+const char* CLOCK_TIMEZONE = "ART3";
+const char* EVENT_LOG_PATH = "/events.log";
+const char* EVENT_LOG_OLD_PATH = "/events.old.log";
+const size_t EVENT_LOG_ROTATE_BYTES = 96 * 1024;
+const size_t EVENT_API_MAX_ITEMS = 80;
+
+bool littleFsReady = false;
+bool clockConfigured = false;
+bool clockRestoredAfterSoftwareRestart = false;
+wl_status_t lastObservedWifiStatus = WL_IDLE_STATUS;
+unsigned long lastWifiMonitorAt = 0;
+const unsigned long WIFI_MONITOR_INTERVAL_MS = 2000;
 
 // ======================================================
 // CONFIGURACIÓN DE HYDROCONTROL
@@ -62,6 +79,7 @@ struct HydroConfig
     uint8_t lightOnMinute = 0;
     uint8_t lightOffHour = 18;
     uint8_t lightOffMinute = 0;
+    bool lightScheduleEnabled = false;
 };
 
 HydroConfig config;
@@ -96,6 +114,21 @@ float currentPh = 5.82f;
 float currentEc = 1.45f;
 float waterTemperature = 18.5f;
 float airHumidity = 61.0f;
+
+// ======================================================
+// DECLARACIONES INTERNAS
+// ======================================================
+
+void logEvent(
+    const String& category,
+    const String& title,
+    const String& detail = ""
+);
+
+void initializeClockRuntime();
+void preserveClockForSoftwareRestart();
+void monitorRouterWifiState();
+void setActiveProfileSlot(int8_t slot);
 
 // ======================================================
 // UTILIDADES
@@ -253,6 +286,9 @@ void loadConfig()
     config.lightOffMinute =
         hydroPreferences.getUChar("lightOffM", 0);
 
+    config.lightScheduleEnabled =
+        hydroPreferences.getBool("lightEnabled", false);
+
     hydroPreferences.end();
 }
 
@@ -313,6 +349,11 @@ void saveConfig()
     hydroPreferences.putUChar(
         "lightOffM",
         config.lightOffMinute
+    );
+
+    hydroPreferences.putBool(
+        "lightEnabled",
+        config.lightScheduleEnabled
     );
 
     hydroPreferences.end();
@@ -457,6 +498,12 @@ bool connectToSavedWifi()
             "No fue posible conectarse al WiFi guardado."
         );
 
+        logEvent(
+            "wifi",
+            "No se pudo conectar al WiFi",
+            String("Red guardada: ") + ssid
+        );
+
         WiFi.disconnect(true);
         delay(200);
 
@@ -469,6 +516,13 @@ bool connectToSavedWifi()
 
     Serial.print("Dirección IP: ");
     Serial.println(WiFi.localIP());
+
+    logEvent(
+        "wifi",
+        "Conectado al WiFi",
+        String("Red ") + ssid +
+            " · IP " + WiFi.localIP().toString()
+    );
 
     return true;
 }
@@ -1598,6 +1652,12 @@ void handleSaveWifiForm()
         password
     );
 
+    logEvent(
+        "wifi",
+        "Credenciales WiFi guardadas",
+        String("Red: ") + ssid
+    );
+
     String json = "{";
 
     json += "\"success\":true,";
@@ -1630,6 +1690,12 @@ void handleSaveWifiForm()
 void handleUseLocalMode()
 {
     saveLocalAccessMode(true);
+
+    logEvent(
+        "wifi",
+        "Modo local solicitado",
+        "El ESP32 reiniciará como punto de acceso HydroControl."
+    );
 
     server.sendHeader(
         "Cache-Control",
@@ -1698,6 +1764,13 @@ void startLocalAccessMode()
 
     Serial.print("Aplicación: http://");
     Serial.println(localIp);
+
+    logEvent(
+        "wifi",
+        "Modo local iniciado",
+        String("Red ") + LOCAL_WIFI_NAME +
+            " · IP " + localIp.toString()
+    );
 }
 
 void startWifiSetupMode()
@@ -1748,6 +1821,13 @@ void startWifiSetupMode()
 
     Serial.print("Dirección: http://");
     Serial.println(setupIp);
+
+    logEvent(
+        "wifi",
+        "Portal de configuración iniciado",
+        String("Red ") + SETUP_WIFI_NAME +
+            " · IP " + setupIp.toString()
+    );
 }
 
 
@@ -1825,6 +1905,882 @@ bool parseTimeValue(
     minute = static_cast<uint8_t>(parsedMinute);
 
     return true;
+}
+
+
+// ======================================================
+// RELOJ INTERNO Y PROGRAMACIÓN DE LUZ
+// ======================================================
+
+bool isValidClockEpoch(uint32_t epoch)
+{
+    // 2024-01-01 a 2100-01-01.
+    return epoch >= 1704067200UL &&
+        epoch <= 4102444800UL;
+}
+
+void applyClockEpoch(uint32_t epoch)
+{
+    struct timeval value;
+    value.tv_sec = static_cast<time_t>(epoch);
+    value.tv_usec = 0;
+
+    settimeofday(&value, nullptr);
+    clockConfigured = true;
+}
+
+void initializeClockRuntime()
+{
+    setenv("TZ", CLOCK_TIMEZONE, 1);
+    tzset();
+
+    clockPreferences.begin("clock", false);
+
+    uint32_t storedEpoch =
+        clockPreferences.getULong("epoch", 0);
+
+    bool restoreAfterRestart =
+        clockPreferences.getBool("restore", false);
+
+    // La restauración solo vale para un reinicio controlado.
+    // Un corte de energía no puede medirse sin un RTC físico.
+    clockPreferences.putBool("restore", false);
+    clockPreferences.end();
+
+    clockConfigured = false;
+    clockRestoredAfterSoftwareRestart = false;
+
+    if (
+        restoreAfterRestart &&
+        isValidClockEpoch(storedEpoch)
+    )
+    {
+        applyClockEpoch(storedEpoch);
+        clockRestoredAfterSoftwareRestart = true;
+    }
+}
+
+void saveManualClockReference(uint32_t epoch)
+{
+    clockPreferences.begin("clock", false);
+    clockPreferences.putULong("epoch", epoch);
+    clockPreferences.putBool("restore", false);
+    clockPreferences.end();
+}
+
+void preserveClockForSoftwareRestart()
+{
+    clockPreferences.begin("clock", false);
+
+    if (clockConfigured)
+    {
+        time_t now = time(nullptr);
+
+        if (
+            now > 0 &&
+            isValidClockEpoch(
+                static_cast<uint32_t>(now)
+            )
+        )
+        {
+            clockPreferences.putULong(
+                "epoch",
+                static_cast<uint32_t>(now)
+            );
+            clockPreferences.putBool("restore", true);
+            clockPreferences.end();
+            return;
+        }
+    }
+
+    clockPreferences.putBool("restore", false);
+    clockPreferences.end();
+}
+
+bool getCurrentLocalTime(struct tm& timeInfo)
+{
+    if (!clockConfigured)
+    {
+        return false;
+    }
+
+    time_t now = time(nullptr);
+
+    if (now <= 0)
+    {
+        return false;
+    }
+
+    localtime_r(&now, &timeInfo);
+    return true;
+}
+
+uint32_t getCurrentClockEpoch()
+{
+    if (!clockConfigured)
+    {
+        return 0;
+    }
+
+    time_t now = time(nullptr);
+
+    if (now <= 0)
+    {
+        return 0;
+    }
+
+    return static_cast<uint32_t>(now);
+}
+
+uint16_t getScheduleDurationMinutes()
+{
+    int onMinutes =
+        config.lightOnHour * 60 +
+        config.lightOnMinute;
+
+    int offMinutes =
+        config.lightOffHour * 60 +
+        config.lightOffMinute;
+
+    int duration = offMinutes - onMinutes;
+
+    if (duration <= 0)
+    {
+        duration += 24 * 60;
+    }
+
+    return static_cast<uint16_t>(duration);
+}
+
+bool isLightScheduledOnNow()
+{
+    struct tm timeInfo;
+
+    if (
+        !config.lightScheduleEnabled ||
+        !getCurrentLocalTime(timeInfo)
+    )
+    {
+        return false;
+    }
+
+    int currentMinutes =
+        timeInfo.tm_hour * 60 +
+        timeInfo.tm_min;
+
+    int onMinutes =
+        config.lightOnHour * 60 +
+        config.lightOnMinute;
+
+    int offMinutes =
+        config.lightOffHour * 60 +
+        config.lightOffMinute;
+
+    if (onMinutes < offMinutes)
+    {
+        return currentMinutes >= onMinutes &&
+            currentMinutes < offMinutes;
+    }
+
+    return currentMinutes >= onMinutes ||
+        currentMinutes < offMinutes;
+}
+
+String getLightStateCode()
+{
+    if (!config.lightScheduleEnabled)
+    {
+        return "disabled";
+    }
+
+    if (!clockConfigured)
+    {
+        return "unknown";
+    }
+
+    return isLightScheduledOnNow()
+        ? "on"
+        : "off";
+}
+
+String getLightStateLabel()
+{
+    String state = getLightStateCode();
+
+    if (state == "disabled")
+    {
+        return "Horario desactivado";
+    }
+
+    if (state == "unknown")
+    {
+        return "Reloj sin configurar";
+    }
+
+    return state == "on"
+        ? "Lámpara encendida"
+        : "Lámpara apagada";
+}
+
+String formatRemainingMinutes(int totalMinutes)
+{
+    int hours = totalMinutes / 60;
+    int minutes = totalMinutes % 60;
+
+    String result;
+
+    if (hours > 0)
+    {
+        result += String(hours) + " h";
+    }
+
+    if (minutes > 0 || hours == 0)
+    {
+        if (!result.isEmpty())
+        {
+            result += " ";
+        }
+
+        result += String(minutes) + " min";
+    }
+
+    return result;
+}
+
+String getLightNextChangeLabel()
+{
+    if (!config.lightScheduleEnabled)
+    {
+        return "Horario desactivado";
+    }
+
+    struct tm timeInfo;
+
+    if (!getCurrentLocalTime(timeInfo))
+    {
+        return "Configurá el reloj";
+    }
+
+    int currentMinutes =
+        timeInfo.tm_hour * 60 +
+        timeInfo.tm_min;
+
+    bool currentlyOn = isLightScheduledOnNow();
+
+    int targetMinutes = currentlyOn
+        ? config.lightOffHour * 60 +
+            config.lightOffMinute
+        : config.lightOnHour * 60 +
+            config.lightOnMinute;
+
+    int difference = targetMinutes - currentMinutes;
+
+    if (difference <= 0)
+    {
+        difference += 24 * 60;
+    }
+
+    return String(currentlyOn ? "Apaga en " : "Enciende en ") +
+        formatRemainingMinutes(difference);
+}
+
+// ======================================================
+// REGISTRO PERSISTENTE DE EVENTOS
+// ======================================================
+
+void rotateEventLogIfNeeded()
+{
+    if (!littleFsReady || !LittleFS.exists(EVENT_LOG_PATH))
+    {
+        return;
+    }
+
+    File eventFile = LittleFS.open(EVENT_LOG_PATH, "r");
+
+    if (!eventFile)
+    {
+        return;
+    }
+
+    size_t currentSize = eventFile.size();
+    eventFile.close();
+
+    if (currentSize < EVENT_LOG_ROTATE_BYTES)
+    {
+        return;
+    }
+
+    if (LittleFS.exists(EVENT_LOG_OLD_PATH))
+    {
+        LittleFS.remove(EVENT_LOG_OLD_PATH);
+    }
+
+    LittleFS.rename(
+        EVENT_LOG_PATH,
+        EVENT_LOG_OLD_PATH
+    );
+}
+
+void logEvent(
+    const String& category,
+    const String& title,
+    const String& detail
+)
+{
+    if (!littleFsReady)
+    {
+        return;
+    }
+
+    rotateEventLogIfNeeded();
+
+    File eventFile = LittleFS.open(
+        EVENT_LOG_PATH,
+        FILE_APPEND
+    );
+
+    if (!eventFile)
+    {
+        Serial.println(
+            "No se pudo abrir el registro de eventos."
+        );
+        return;
+    }
+
+    uint32_t epoch = getCurrentClockEpoch();
+
+    uint64_t uptimeSeconds =
+        static_cast<uint64_t>(esp_timer_get_time()) /
+        1000000ULL;
+
+    char uptimeBuffer[24];
+
+    snprintf(
+        uptimeBuffer,
+        sizeof(uptimeBuffer),
+        "%llu",
+        static_cast<unsigned long long>(uptimeSeconds)
+    );
+
+    String line;
+    line.reserve(240);
+
+    line += "{";
+    line += "\"epoch\":" + String(epoch) + ",";
+    line += "\"uptimeSeconds\":";
+    line += uptimeBuffer;
+    line += ",\"category\":\"";
+    line += escapeJson(category);
+    line += "\",\"title\":\"";
+    line += escapeJson(title);
+    line += "\",\"detail\":\"";
+    line += escapeJson(detail);
+    line += "\"}";
+
+    eventFile.println(line);
+    eventFile.flush();
+    eventFile.close();
+
+    Serial.print("[EVENTO] ");
+    Serial.print(title);
+
+    if (!detail.isEmpty())
+    {
+        Serial.print(" — ");
+        Serial.print(detail);
+    }
+
+    Serial.println();
+}
+
+void recordDosageEvent(
+    const String& channel,
+    uint32_t durationMs,
+    bool automatic
+)
+{
+    String detail = channel;
+    detail += " durante ";
+    detail += String(durationMs / 1000.0f, 2);
+    detail += " s · ";
+    detail += automatic ? "automática" : "manual";
+
+    logEvent(
+        "dosage",
+        "Dosificación ejecutada",
+        detail
+    );
+}
+
+void readEventFileIntoRing(
+    const char* path,
+    String* ring,
+    size_t capacity,
+    size_t& count,
+    size_t& nextIndex
+)
+{
+    if (!LittleFS.exists(path))
+    {
+        return;
+    }
+
+    File eventFile = LittleFS.open(path, "r");
+
+    if (!eventFile)
+    {
+        return;
+    }
+
+    while (eventFile.available())
+    {
+        String line = eventFile.readStringUntil('\n');
+        line.trim();
+
+        if (line.isEmpty())
+        {
+            continue;
+        }
+
+        ring[nextIndex] = line;
+        nextIndex = (nextIndex + 1) % capacity;
+
+        if (count < capacity)
+        {
+            count++;
+        }
+    }
+
+    eventFile.close();
+}
+
+size_t getEventLogTotalBytes()
+{
+    size_t total = 0;
+
+    const char* paths[] = {
+        EVENT_LOG_OLD_PATH,
+        EVENT_LOG_PATH
+    };
+
+    for (const char* path : paths)
+    {
+        if (!LittleFS.exists(path))
+        {
+            continue;
+        }
+
+        File file = LittleFS.open(path, "r");
+
+        if (file)
+        {
+            total += file.size();
+            file.close();
+        }
+    }
+
+    return total;
+}
+
+void handleGetEvents()
+{
+    String eventRing[EVENT_API_MAX_ITEMS];
+    size_t eventCount = 0;
+    size_t nextIndex = 0;
+
+    readEventFileIntoRing(
+        EVENT_LOG_OLD_PATH,
+        eventRing,
+        EVENT_API_MAX_ITEMS,
+        eventCount,
+        nextIndex
+    );
+
+    readEventFileIntoRing(
+        EVENT_LOG_PATH,
+        eventRing,
+        EVENT_API_MAX_ITEMS,
+        eventCount,
+        nextIndex
+    );
+
+    int requestedLimit = EVENT_API_MAX_ITEMS;
+
+    if (server.hasArg("limit"))
+    {
+        requestedLimit = server.arg("limit").toInt();
+
+        if (requestedLimit < 1)
+        {
+            requestedLimit = 1;
+        }
+
+        if (
+            requestedLimit >
+            static_cast<int>(EVENT_API_MAX_ITEMS)
+        )
+        {
+            requestedLimit = EVENT_API_MAX_ITEMS;
+        }
+    }
+
+    size_t outputCount = eventCount;
+
+    if (outputCount > static_cast<size_t>(requestedLimit))
+    {
+        outputCount = requestedLimit;
+    }
+
+    String json;
+    json.reserve(1500 + outputCount * 180);
+
+    json += "{";
+    json += "\"success\":true,";
+    json += "\"count\":" + String(outputCount) + ",";
+    json += "\"fileBytes\":" +
+        String(static_cast<unsigned long>(getEventLogTotalBytes())) + ",";
+    json += "\"clockConfigured\":";
+    json += clockConfigured ? "true" : "false";
+    json += ",\"events\":[";
+
+    for (size_t index = 0; index < outputCount; index++)
+    {
+        if (index > 0)
+        {
+            json += ",";
+        }
+
+        size_t ringIndex =
+            (nextIndex + EVENT_API_MAX_ITEMS - 1 - index) %
+            EVENT_API_MAX_ITEMS;
+
+        json += eventRing[ringIndex];
+    }
+
+    json += "]}";
+
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+}
+
+void handleClearEvents()
+{
+    if (LittleFS.exists(EVENT_LOG_PATH))
+    {
+        LittleFS.remove(EVENT_LOG_PATH);
+    }
+
+    if (LittleFS.exists(EVENT_LOG_OLD_PATH))
+    {
+        LittleFS.remove(EVENT_LOG_OLD_PATH);
+    }
+
+    logEvent(
+        "system",
+        "Registro de eventos limpiado",
+        "El historial anterior fue eliminado manualmente."
+    );
+
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        "{\"success\":true,"
+        "\"message\":\"Registro de eventos limpiado.\"}"
+    );
+}
+
+void appendClockAndLightJson(String& json)
+{
+    uint32_t epoch = getCurrentClockEpoch();
+
+    json += "\"clock\":{";
+    json += "\"configured\":";
+    json += clockConfigured ? "true" : "false";
+    json += ",\"epoch\":";
+
+    if (clockConfigured)
+    {
+        json += String(epoch);
+    }
+    else
+    {
+        json += "null";
+    }
+
+    json += ",\"restoredAfterRestart\":";
+    json += clockRestoredAfterSoftwareRestart
+        ? "true"
+        : "false";
+    json += ",\"timezone\":\"UTC-03:00\"";
+    json += "},";
+
+    json += "\"light\":{";
+    json += "\"enabled\":";
+    json += config.lightScheduleEnabled
+        ? "true"
+        : "false";
+    json += ",\"on\":\"";
+    json += formatTime(
+        config.lightOnHour,
+        config.lightOnMinute
+    );
+    json += "\",\"off\":\"";
+    json += formatTime(
+        config.lightOffHour,
+        config.lightOffMinute
+    );
+    json += "\",\"photoperiodMinutes\":" +
+        String(getScheduleDurationMinutes());
+    json += ",\"stateCode\":\"";
+    json += getLightStateCode();
+    json += "\",\"stateLabel\":\"";
+    json += escapeJson(getLightStateLabel());
+    json += "\",\"nextChangeLabel\":\"";
+    json += escapeJson(getLightNextChangeLabel());
+    json += "\",\"outputAvailable\":false";
+    json += "}";
+}
+
+void handleGetClockStatus()
+{
+    String json;
+    json.reserve(700);
+
+    json += "{\"success\":true,";
+    appendClockAndLightJson(json);
+    json += "}";
+
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+}
+
+void handleSetClock()
+{
+    if (!server.hasArg("epoch"))
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"Falta la fecha y hora.\"}"
+        );
+        return;
+    }
+
+    String epochText = server.arg("epoch");
+    char* endPointer = nullptr;
+
+    unsigned long parsedEpoch = strtoul(
+        epochText.c_str(),
+        &endPointer,
+        10
+    );
+
+    if (
+        endPointer == epochText.c_str() ||
+        *endPointer != '\0' ||
+        !isValidClockEpoch(
+            static_cast<uint32_t>(parsedEpoch)
+        )
+    )
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"La fecha y hora no son válidas.\"}"
+        );
+        return;
+    }
+
+    applyClockEpoch(
+        static_cast<uint32_t>(parsedEpoch)
+    );
+
+    clockRestoredAfterSoftwareRestart = false;
+
+    saveManualClockReference(
+        static_cast<uint32_t>(parsedEpoch)
+    );
+
+    struct tm timeInfo;
+    char dateTimeBuffer[32] = "hora configurada";
+
+    if (getCurrentLocalTime(timeInfo))
+    {
+        strftime(
+            dateTimeBuffer,
+            sizeof(dateTimeBuffer),
+            "%d/%m/%Y %H:%M:%S",
+            &timeInfo
+        );
+    }
+
+    logEvent(
+        "clock",
+        "Reloj configurado",
+        String("Hora establecida manualmente: ") +
+            dateTimeBuffer
+    );
+
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        "{\"success\":true,"
+        "\"message\":\"Hora guardada correctamente.\"}"
+    );
+}
+
+void handleSaveLightSchedule()
+{
+    if (
+        !server.hasArg("enabled") ||
+        !server.hasArg("lightOn") ||
+        !server.hasArg("lightOff")
+    )
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"Faltan datos del horario de luz.\"}"
+        );
+        return;
+    }
+
+    uint8_t onHour;
+    uint8_t onMinute;
+    uint8_t offHour;
+    uint8_t offMinute;
+
+    String lightOn = server.arg("lightOn");
+    String lightOff = server.arg("lightOff");
+
+    if (
+        !parseTimeValue(lightOn, onHour, onMinute) ||
+        !parseTimeValue(lightOff, offHour, offMinute) ||
+        lightOn == lightOff
+    )
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"Los horarios de luz no son válidos.\"}"
+        );
+        return;
+    }
+
+    bool enabled = server.arg("enabled") == "true";
+
+    bool changed =
+        config.lightScheduleEnabled != enabled ||
+        config.lightOnHour != onHour ||
+        config.lightOnMinute != onMinute ||
+        config.lightOffHour != offHour ||
+        config.lightOffMinute != offMinute;
+
+    config.lightScheduleEnabled = enabled;
+    config.lightOnHour = onHour;
+    config.lightOnMinute = onMinute;
+    config.lightOffHour = offHour;
+    config.lightOffMinute = offMinute;
+
+    saveConfig();
+
+    // Un cambio manual del horario deja de coincidir con
+    // el perfil que estaba aplicado.
+    setActiveProfileSlot(-1);
+
+    if (changed)
+    {
+        String detail = enabled
+            ? "Horario activo · "
+            : "Horario desactivado · ";
+
+        detail += lightOn;
+        detail += " a ";
+        detail += lightOff;
+        detail += " · ";
+        detail += String(getScheduleDurationMinutes() / 60);
+        detail += " h ";
+        detail += String(getScheduleDurationMinutes() % 60);
+        detail += " min";
+
+        logEvent(
+            "light",
+            "Programación de luz actualizada",
+            detail
+        );
+    }
+
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        "{\"success\":true,"
+        "\"message\":\"Programación de luz guardada.\"}"
+    );
+}
+
+void monitorRouterWifiState()
+{
+    if (wifiSetupMode || localAccessMode)
+    {
+        return;
+    }
+
+    if (
+        millis() - lastWifiMonitorAt <
+        WIFI_MONITOR_INTERVAL_MS
+    )
+    {
+        return;
+    }
+
+    lastWifiMonitorAt = millis();
+    wl_status_t currentStatus = WiFi.status();
+
+    if (currentStatus == lastObservedWifiStatus)
+    {
+        return;
+    }
+
+    bool wasConnected =
+        lastObservedWifiStatus == WL_CONNECTED;
+
+    bool isConnected =
+        currentStatus == WL_CONNECTED;
+
+    if (wasConnected && !isConnected)
+    {
+        logEvent(
+            "wifi",
+            "WiFi desconectado",
+            String("Se perdió la conexión con ") +
+                loadWifiSsid() + "."
+        );
+    }
+    else if (!wasConnected && isConnected)
+    {
+        logEvent(
+            "wifi",
+            "WiFi recuperado",
+            String("Conectado a ") +
+                WiFi.SSID() +
+                " · IP " +
+                WiFi.localIP().toString()
+        );
+    }
+
+    lastObservedWifiStatus = currentStatus;
 }
 
 int8_t getActiveProfileSlot()
@@ -2423,6 +3379,29 @@ void handleSaveProfile()
         applyProfileToConfig(profile);
     }
 
+    String profileEventDetail = "pH ";
+    profileEventDetail += String(profile.targetPh, 2);
+    profileEventDetail += " · EC ";
+    profileEventDetail += String(profile.targetEc, 2);
+    profileEventDetail += " mS/cm · Luz ";
+    profileEventDetail += formatTime(
+        profile.lightOnHour,
+        profile.lightOnMinute
+    );
+    profileEventDetail += "–";
+    profileEventDetail += formatTime(
+        profile.lightOffHour,
+        profile.lightOffMinute
+    );
+
+    logEvent(
+        "profile",
+        updating
+            ? "Perfil actualizado"
+            : "Perfil creado",
+        profile.name + " · " + profileEventDetail
+    );
+
     String json = "{";
     json += "\"success\":true,";
     json += "\"id\":" + String(slot) + ",";
@@ -2487,6 +3466,27 @@ void handleApplyProfile()
     applyProfileToConfig(profile);
     setActiveProfileSlot(static_cast<int8_t>(slot));
 
+    String appliedDetail = "pH ";
+    appliedDetail += String(profile.targetPh, 2);
+    appliedDetail += " · EC ";
+    appliedDetail += String(profile.targetEc, 2);
+    appliedDetail += " mS/cm · Luz ";
+    appliedDetail += formatTime(
+        profile.lightOnHour,
+        profile.lightOnMinute
+    );
+    appliedDetail += "–";
+    appliedDetail += formatTime(
+        profile.lightOffHour,
+        profile.lightOffMinute
+    );
+
+    logEvent(
+        "profile",
+        "Perfil aplicado",
+        profile.name + " · " + appliedDetail
+    );
+
     String json = "{";
     json += "\"success\":true,";
     json += "\"activeId\":" + String(slot) + ",";
@@ -2549,6 +3549,12 @@ void handleDeleteProfile()
     String deletedName = profile.name;
     deleteProfile(static_cast<uint8_t>(slot));
 
+    logEvent(
+        "profile",
+        "Perfil eliminado",
+        deletedName
+    );
+
     String json = "{";
     json += "\"success\":true,";
     json += "\"message\":\"Perfil eliminado: ";
@@ -2581,6 +3587,9 @@ void handleApiStatus()
 
     json += "\"wifiRssi\":" +
         String(WiFi.RSSI());
+
+    json += ",";
+    appendClockAndLightJson(json);
 
     json += "}";
 
@@ -2643,6 +3652,11 @@ void handleGetConfig()
         config.lightOffMinute
     );
     json += "\"";
+
+    json += ",\"lightScheduleEnabled\":";
+    json += config.lightScheduleEnabled
+        ? "true"
+        : "false";
 
     json += ",\"activeProfileId\":" +
         String(static_cast<int>(getActiveProfileSlot()));
@@ -2723,6 +3737,13 @@ void handleSaveConfig()
         return;
     }
 
+    float previousTargetPh = config.targetPh;
+    float previousTolerance = config.phTolerance;
+    uint32_t previousDoseDuration = config.doseDurationMs;
+    uint32_t previousDoseInterval = config.doseIntervalMinutes;
+    uint8_t previousMaxDoses = config.maxConsecutiveDoses;
+    bool previousAutomaticMode = config.automaticMode;
+
     config.targetPh = targetPh;
     config.phTolerance = tolerance;
 
@@ -2748,6 +3769,72 @@ void handleSaveConfig()
     // Una modificación manual deja de coincidir con el perfil
     // que estaba aplicado anteriormente.
     setActiveProfileSlot(-1);
+
+    String changes;
+
+    if (previousTargetPh != config.targetPh)
+    {
+        changes += "Objetivo ";
+        changes += String(previousTargetPh, 2);
+        changes += " → ";
+        changes += String(config.targetPh, 2);
+    }
+
+    if (previousTolerance != config.phTolerance)
+    {
+        if (!changes.isEmpty()) changes += " · ";
+        changes += "Tolerancia ";
+        changes += String(previousTolerance, 2);
+        changes += " → ";
+        changes += String(config.phTolerance, 2);
+    }
+
+    if (previousDoseDuration != config.doseDurationMs)
+    {
+        if (!changes.isEmpty()) changes += " · ";
+        changes += "Dosis ";
+        changes += String(previousDoseDuration / 1000.0f, 2);
+        changes += " s → ";
+        changes += String(config.doseDurationMs / 1000.0f, 2);
+        changes += " s";
+    }
+
+    if (previousDoseInterval != config.doseIntervalMinutes)
+    {
+        if (!changes.isEmpty()) changes += " · ";
+        changes += "Intervalo ";
+        changes += String(previousDoseInterval);
+        changes += " → ";
+        changes += String(config.doseIntervalMinutes);
+        changes += " min";
+    }
+
+    if (previousMaxDoses != config.maxConsecutiveDoses)
+    {
+        if (!changes.isEmpty()) changes += " · ";
+        changes += "Máximo ";
+        changes += String(previousMaxDoses);
+        changes += " → ";
+        changes += String(config.maxConsecutiveDoses);
+    }
+
+    if (previousAutomaticMode != config.automaticMode)
+    {
+        if (!changes.isEmpty()) changes += " · ";
+        changes += config.automaticMode
+            ? "Automático activado"
+            : "Automático desactivado";
+    }
+
+    if (!changes.isEmpty())
+    {
+        logEvent(
+            "ph",
+            "Configuración de pH actualizada",
+            changes
+        );
+    }
+
 
     server.send(
         200,
@@ -2911,6 +3998,12 @@ void handleGetSystemStatus()
 
 void handleRestartSystem()
 {
+    logEvent(
+        "system",
+        "Reinicio solicitado",
+        "El ESP32 se reiniciará sin borrar la configuración."
+    );
+
     server.send(
         200,
         "application/json; charset=utf-8",
@@ -3135,6 +4228,12 @@ void handleSaveWifiApi()
     saveLocalAccessMode(false);
     saveWifiCredentials(ssid, password);
 
+    logEvent(
+        "wifi",
+        "Nueva red WiFi guardada",
+        String("Red: ") + ssid
+    );
+
     String json = "{";
     json += "\"success\":true,";
     json += "\"message\":\"WiFi comprobado y guardado. Reiniciando...\",";
@@ -3157,7 +4256,16 @@ void handleSaveWifiApi()
 
 void handleResetWifi()
 {
+    String removedSsid = loadWifiSsid();
     clearWifiCredentials();
+
+    logEvent(
+        "wifi",
+        "Credenciales WiFi eliminadas",
+        removedSsid.isEmpty()
+            ? "No había una red guardada."
+            : String("Red eliminada: ") + removedSsid
+    );
 
     server.sendHeader(
         "Cache-Control",
@@ -3202,6 +4310,12 @@ void handleDisconnectWifi()
     // el ESP32 se conecte automáticamente al router.
     // En el siguiente arranque levantará la red local.
     saveLocalAccessMode(true);
+
+    logEvent(
+        "wifi",
+        "Desconexión del router solicitada",
+        String("Se conserva la red: ") + savedSsid
+    );
 
     String json = "{";
     json += "\"success\":true,";
@@ -3337,6 +4451,12 @@ void handleConnectSavedWifi()
 
     saveLocalAccessMode(false);
 
+    logEvent(
+        "wifi",
+        "Conexión a red guardada solicitada",
+        savedSsid
+    );
+
     String json = "{";
     json += "\"success\":true,";
     json += "\"alreadyConnected\":false,";
@@ -3404,6 +4524,12 @@ void handleDeleteSavedWifiPassword()
     }
 
     clearWifiPassword();
+
+    logEvent(
+        "wifi",
+        "Contraseña WiFi eliminada",
+        String("SSID conservado: ") + savedSsid
+    );
 
     String json = "{";
     json += "\"success\":true,";
@@ -3571,6 +4697,30 @@ void handleFileRequest()
 }
 
 // ======================================================
+// API DE COMPATIBILIDAD Y VERSIÓN
+// ======================================================
+
+void handleGetRuntimeInfo()
+{
+    String json = "{";
+    json += "\"success\":true,";
+    json += "\"firmwareVersion\":\"";
+    json += FIRMWARE_VERSION;
+    json += "\",";
+    json += "\"clockApi\":true,";
+    json += "\"eventsApi\":true,";
+    json += "\"lightScheduleApi\":true";
+    json += "}";
+
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+}
+
+// ======================================================
 // REGISTRO DE RUTAS
 // ======================================================
 
@@ -3583,6 +4733,12 @@ void registerServerRoutes()
     );
 
     server.on(
+        "/api/runtime",
+        HTTP_GET,
+        handleGetRuntimeInfo
+    );
+
+    server.on(
         "/api/config",
         HTTP_GET,
         handleGetConfig
@@ -3592,6 +4748,50 @@ void registerServerRoutes()
         "/api/config",
         HTTP_POST,
         handleSaveConfig
+    );
+
+    server.on(
+        "/api/clock/status",
+        HTTP_GET,
+        handleGetClockStatus
+    );
+
+    // Alias compatible con la primera implementación del reloj.
+    server.on(
+        "/api/clock",
+        HTTP_GET,
+        handleGetClockStatus
+    );
+
+    server.on(
+        "/api/clock/set",
+        HTTP_POST,
+        handleSetClock
+    );
+
+    server.on(
+        "/api/light/schedule",
+        HTTP_POST,
+        handleSaveLightSchedule
+    );
+
+    server.on(
+        "/api/events",
+        HTTP_GET,
+        handleGetEvents
+    );
+
+    // Alias de compatibilidad para clientes que usen /list.
+    server.on(
+        "/api/events/list",
+        HTTP_GET,
+        handleGetEvents
+    );
+
+    server.on(
+        "/api/events/clear",
+        HTTP_POST,
+        handleClearEvents
     );
 
     server.on(
@@ -3811,6 +5011,20 @@ void setup()
         "LittleFS iniciado correctamente."
     );
 
+    littleFsReady = true;
+    initializeClockRuntime();
+
+    String startupDetail = "Firmware ";
+    startupDetail += FIRMWARE_VERSION;
+    startupDetail += " · ";
+    startupDetail += getResetReasonText();
+
+    logEvent(
+        "system",
+        "ESP32 iniciado",
+        startupDetail
+    );
+
     registerServerRoutes();
 
     if (loadLocalAccessMode())
@@ -3821,6 +5035,9 @@ void setup()
     {
         startWifiSetupMode();
     }
+
+    lastObservedWifiStatus = WiFi.status();
+    lastWifiMonitorAt = millis();
 
     server.begin();
 
@@ -3882,12 +5099,14 @@ void loop()
     }
 
     server.handleClient();
+    monitorRouterWifiState();
 
     if (
         restartPending &&
         millis() - restartRequestedAt >= RESTART_DELAY_MS
     )
     {
+        preserveClockForSoftwareRestart();
         ESP.restart();
     }
 

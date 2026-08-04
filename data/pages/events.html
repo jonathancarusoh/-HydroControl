@@ -1,0 +1,106 @@
+<div class="container-fluid events-page" id="eventsPageRoot">
+
+    <div class="events-page-heading">
+        <div>
+            <div class="events-eyebrow">Actividad real del controlador</div>
+
+            <h2 class="mb-1">
+                <i class="bi bi-list-check"></i>
+                Eventos
+            </h2>
+
+            <p class="text-secondary mb-0">
+                Reinicios, conexiones, perfiles, configuraciones y futuras acciones de control.
+            </p>
+        </div>
+
+        <button
+            type="button"
+            class="btn btn-outline-light events-refresh-button"
+            id="refreshEventsButton">
+
+            <i class="bi bi-arrow-clockwise"></i>
+            Actualizar
+        </button>
+    </div>
+
+    <div
+        class="alert d-none mt-3"
+        id="eventsMessage"
+        role="alert">
+    </div>
+
+    <div class="events-summary-grid">
+        <article class="events-summary-card">
+            <span><i class="bi bi-activity"></i></span>
+            <div>
+                <small>Eventos disponibles</small>
+                <strong id="eventsCount">0</strong>
+            </div>
+        </article>
+
+        <article class="events-summary-card">
+            <span><i class="bi bi-device-ssd"></i></span>
+            <div>
+                <small>Espacio del registro</small>
+                <strong id="eventsStorage">0 KB</strong>
+            </div>
+        </article>
+
+        <article class="events-summary-card">
+            <span><i class="bi bi-clock"></i></span>
+            <div>
+                <small>Marca horaria</small>
+                <strong id="eventsClockState">Por tiempo encendido</strong>
+            </div>
+        </article>
+    </div>
+
+    <section class="events-panel">
+        <div class="events-toolbar">
+            <label class="events-filter-field">
+                <span>Mostrar</span>
+                <select class="form-select" id="eventsCategoryFilter">
+                    <option value="all">Todos los eventos</option>
+                    <option value="system">Sistema</option>
+                    <option value="wifi">WiFi</option>
+                    <option value="profile">Perfiles</option>
+                    <option value="ph">pH</option>
+                    <option value="ec">EC</option>
+                    <option value="clock">Reloj</option>
+                    <option value="light">Luz</option>
+                    <option value="dosage">Dosificación</option>
+                </select>
+            </label>
+
+            <div class="events-toolbar-actions">
+                <span class="events-live-badge">
+                    <span></span>
+                    Actualización automática
+                </span>
+
+                <button
+                    type="button"
+                    class="btn btn-outline-danger"
+                    id="clearEventsButton">
+
+                    <i class="bi bi-trash3"></i>
+                    Limpiar registro
+                </button>
+            </div>
+        </div>
+
+        <div class="events-loading d-none" id="eventsLoading">
+            <span class="spinner-border spinner-border-sm"></span>
+            Cargando actividad...
+        </div>
+
+        <div class="events-timeline" id="eventsTimeline"></div>
+
+        <div class="events-empty d-none" id="eventsEmptyState">
+            <span><i class="bi bi-inbox"></i></span>
+            <h5>No hay eventos para mostrar</h5>
+            <p>Las acciones reales del HydroControl aparecerán acá.</p>
+        </div>
+    </section>
+</div>

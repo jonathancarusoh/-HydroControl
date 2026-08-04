@@ -1,0 +1,251 @@
+<div class="container-fluid clock-page" id="clockPageRoot">
+
+    <div class="clock-page-heading">
+        <div>
+            <div class="clock-eyebrow">Programación horaria</div>
+
+            <h2 class="mb-1">
+                <i class="bi bi-clock-history"></i>
+                Reloj y luz
+            </h2>
+
+            <p class="text-secondary mb-0">
+                Ajustá la hora interna del controlador y el fotoperíodo de la lámpara.
+            </p>
+        </div>
+
+        <button
+            type="button"
+            class="btn btn-outline-light clock-refresh-button"
+            id="refreshClockButton">
+
+            <i class="bi bi-arrow-clockwise"></i>
+            Actualizar
+        </button>
+    </div>
+
+    <div
+        class="alert d-none mt-3"
+        id="clockPageMessage"
+        role="alert">
+    </div>
+
+    <section class="clock-live-panel">
+        <div class="clock-live-main">
+            <span class="clock-live-icon">
+                <i class="bi bi-clock"></i>
+            </span>
+
+            <div>
+                <small>Hora del HydroControl</small>
+                <div class="clock-live-time" id="clockLiveTime">--:--:--</div>
+                <div class="clock-live-date" id="clockLiveDate">
+                    Hora todavía no configurada
+                </div>
+            </div>
+        </div>
+
+        <div class="clock-live-meta">
+            <span class="clock-status-badge pending" id="clockStatusBadge">
+                Requiere configuración
+            </span>
+
+            <span class="clock-timezone-label">
+                <i class="bi bi-globe-americas"></i>
+                UTC−03:00 · Argentina
+            </span>
+        </div>
+    </section>
+
+    <div class="row g-4 mt-0">
+        <div class="col-xl-5">
+            <section class="clock-panel h-100">
+                <div class="clock-panel-heading">
+                    <span class="clock-panel-icon">
+                        <i class="bi bi-sliders"></i>
+                    </span>
+
+                    <div>
+                        <h5>Ajustar reloj</h5>
+                        <p>Configuración manual, sin depender de Internet.</p>
+                    </div>
+                </div>
+
+                <div class="clock-form-grid">
+                    <label class="clock-field">
+                        <span>Fecha</span>
+
+                        <div class="clock-input-shell">
+                            <i class="bi bi-calendar3"></i>
+                            <input
+                                type="date"
+                                id="clockDateInput"
+                                autocomplete="off">
+                        </div>
+                    </label>
+
+                    <label class="clock-field">
+                        <span>Hora</span>
+
+                        <div class="clock-input-shell">
+                            <i class="bi bi-clock"></i>
+                            <input
+                                type="time"
+                                id="clockTimeInput"
+                                step="1"
+                                autocomplete="off">
+                        </div>
+                    </label>
+                </div>
+
+                <button
+                    type="button"
+                    class="btn btn-outline-light w-100 mt-3"
+                    id="useDeviceTimeButton">
+
+                    <i class="bi bi-phone"></i>
+                    Copiar hora de este dispositivo
+                </button>
+
+                <button
+                    type="button"
+                    class="btn btn-success w-100 mt-2"
+                    id="saveClockButton">
+
+                    <i class="bi bi-check2-circle"></i>
+                    Guardar hora en el ESP32
+                </button>
+
+                <div class="clock-hardware-note mt-3">
+                    <i class="bi bi-info-circle"></i>
+                    <span>
+                        La hora continúa mientras el ESP32 tenga alimentación. Después de un corte
+                        eléctrico deberá verificarse nuevamente hasta incorporar un módulo RTC.
+                    </span>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-xl-7">
+            <section class="clock-panel light-schedule-panel h-100">
+                <div class="clock-panel-heading light-panel-heading">
+                    <span class="clock-panel-icon light-icon">
+                        <i class="bi bi-lightbulb"></i>
+                    </span>
+
+                    <div>
+                        <h5>Programación de la lámpara</h5>
+                        <p>Definí cuándo debería encenderse y apagarse.</p>
+                    </div>
+
+                    <div class="form-check form-switch light-enable-switch">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            role="switch"
+                            id="lightScheduleEnabled">
+
+                        <label
+                            class="form-check-label"
+                            for="lightScheduleEnabled">
+                            Activar horario
+                        </label>
+                    </div>
+                </div>
+
+                <div class="light-time-grid" id="lightTimeControls">
+                    <label class="light-time-card on">
+                        <span class="light-time-card-icon">
+                            <i class="bi bi-sunrise"></i>
+                        </span>
+
+                        <span class="light-time-copy">
+                            <small>Encender</small>
+                            <strong>Inicio del día</strong>
+                        </span>
+
+                        <div class="light-time-input-shell">
+                            <input
+                                type="time"
+                                id="lightOnInput"
+                                autocomplete="off">
+                        </div>
+                    </label>
+
+                    <div class="light-time-connector">
+                        <span></span>
+                        <i class="bi bi-arrow-right"></i>
+                        <span></span>
+                    </div>
+
+                    <label class="light-time-card off">
+                        <span class="light-time-card-icon">
+                            <i class="bi bi-sunset"></i>
+                        </span>
+
+                        <span class="light-time-copy">
+                            <small>Apagar</small>
+                            <strong>Fin del día</strong>
+                        </span>
+
+                        <div class="light-time-input-shell">
+                            <input
+                                type="time"
+                                id="lightOffInput"
+                                autocomplete="off">
+                        </div>
+                    </label>
+                </div>
+
+                <div class="light-schedule-summary">
+                    <div>
+                        <small>Fotoperíodo</small>
+                        <strong id="lightPhotoperiodValue">-- h -- min</strong>
+                    </div>
+
+                    <div>
+                        <small>Estado programado</small>
+                        <strong id="lightProgrammedState">Sin reloj</strong>
+                    </div>
+
+                    <div>
+                        <small>Próximo cambio</small>
+                        <strong id="lightNextChange">---</strong>
+                    </div>
+                </div>
+
+                <div class="light-day-track" aria-label="Representación del fotoperíodo">
+                    <div class="light-day-track-labels">
+                        <span>00:00</span>
+                        <span>06:00</span>
+                        <span>12:00</span>
+                        <span>18:00</span>
+                        <span>24:00</span>
+                    </div>
+
+                    <div class="light-day-track-bar" id="lightDayTrackBar">
+                        <span class="light-day-segment" id="lightDaySegmentPrimary"></span>
+                        <span class="light-day-segment secondary" id="lightDaySegmentSecondary"></span>
+                    </div>
+                </div>
+
+                <button
+                    type="button"
+                    class="btn btn-success w-100 mt-4"
+                    id="saveLightScheduleButton">
+
+                    <i class="bi bi-calendar-check"></i>
+                    Guardar programación de luz
+                </button>
+
+                <div class="clock-hardware-note mt-3">
+                    <i class="bi bi-plug"></i>
+                    <span>
+                        El horario queda guardado y calculado desde ahora. La salida física se
+                        conectará cuando incorporemos el relé o contactor de la lámpara.
+                    </span>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
