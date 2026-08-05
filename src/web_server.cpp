@@ -3,6 +3,7 @@
 #include "app_state.h"
 #include "clock_manager.h"
 #include "event_logger.h"
+#include "manual_ph_dosing.h"
 #include "ph.h"
 #include "profile_manager.h"
 #include "system_manager.h"
@@ -186,6 +187,24 @@ void registerServerRoutes()
     );
 
     server.on(
+        "/api/ph/manual/status",
+        HTTP_GET,
+        handleGetManualPhDoseStatus
+    );
+
+    server.on(
+        "/api/ph/manual/start",
+        HTTP_POST,
+        handleStartManualPhDose
+    );
+
+    server.on(
+        "/api/ph/manual/cancel",
+        HTTP_POST,
+        handleCancelManualPhDose
+    );
+
+    server.on(
         "/api/clock/status",
         HTTP_GET,
         handleGetClockStatus
@@ -208,6 +227,12 @@ void registerServerRoutes()
         "/api/light/schedule",
         HTTP_POST,
         handleSaveLightSchedule
+    );
+
+    server.on(
+        "/api/light/manual",
+        HTTP_POST,
+        handleSetManualLight
     );
 
     server.on(

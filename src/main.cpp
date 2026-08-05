@@ -6,6 +6,7 @@
 #include "clock_manager.h"
 #include "config.h"
 #include "event_logger.h"
+#include "manual_ph_dosing.h"
 #include "utils.h"
 #include "web_server.h"
 #include "wifi_manager.h"
@@ -117,6 +118,7 @@ void loop()
     }
 
     server.handleClient();
+    processManualPhDosing();
     monitorRouterWifiState();
 
     if (

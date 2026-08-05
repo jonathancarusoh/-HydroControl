@@ -30,6 +30,12 @@ void loadConfig()
     config.automaticMode =
         hydroPreferences.getBool("autoMode", true);
 
+    config.manualDoseDurationMs =
+        hydroPreferences.getUInt("manualDoseMs", 1000);
+
+    config.manualMaxDoses =
+        hydroPreferences.getUChar("manualMax", 3);
+
     config.targetEc =
         hydroPreferences.getFloat("targetEc", 1.40f);
 
@@ -47,6 +53,9 @@ void loadConfig()
 
     config.lightScheduleEnabled =
         hydroPreferences.getBool("lightEnabled", false);
+
+    config.lightManualOn =
+        hydroPreferences.getBool("lightManual", false);
 
     hydroPreferences.end();
 }
@@ -85,6 +94,16 @@ void saveConfig()
         config.automaticMode
     );
 
+    hydroPreferences.putUInt(
+        "manualDoseMs",
+        config.manualDoseDurationMs
+    );
+
+    hydroPreferences.putUChar(
+        "manualMax",
+        config.manualMaxDoses
+    );
+
     hydroPreferences.putFloat(
         "targetEc",
         config.targetEc
@@ -113,6 +132,11 @@ void saveConfig()
     hydroPreferences.putBool(
         "lightEnabled",
         config.lightScheduleEnabled
+    );
+
+    hydroPreferences.putBool(
+        "lightManual",
+        config.lightManualOn
     );
 
     hydroPreferences.end();

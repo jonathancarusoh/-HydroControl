@@ -9,7 +9,7 @@ const char* SETUP_WIFI_PASSWORD = "hydrocontrol";
 const char* LOCAL_WIFI_NAME = "HydroControl";
 const char* LOCAL_WIFI_PASSWORD = "hydrocontrol";
 const char* MDNS_HOSTNAME = "hydrocontrol";
-const char* FIRMWARE_VERSION = "0.2.1";
+const char* FIRMWARE_VERSION = "0.3.0";
 const byte DNS_PORT = 53;
 const unsigned long RESTART_DELAY_MS = 3000;
 

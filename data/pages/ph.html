@@ -1,266 +1,483 @@
-<div class="container-fluid">
+<div class="ph-control-page">
 
-    <div class="row mb-4">
-        <div class="col">
-            <h2 class="fw-bold">Control de pH</h2>
+    <header class="ph-control-heading">
+        <div>
+            <span class="ph-control-kicker">
+                CONTROL DE LA SOLUCIÓN
+            </span>
 
-            <p class="text-secondary">
-                Configuración y monitoreo del sistema automático de pH.
+            <h1>
+                <i class="bi bi-droplet-half"></i>
+                Control de pH
+            </h1>
+
+            <p>
+                Lectura, regulación automática y dosificación manual segura.
             </p>
         </div>
-    </div>
 
-    <div class="row g-4">
+        <div class="ph-control-live-pill">
+            <span></span>
+            Estado en vivo
+        </div>
+    </header>
 
-        <div class="col-lg-6">
+    <section class="ph-control-overview-grid">
 
-            <div class="card sensor-card">
-                <div class="card-body">
+        <article class="ph-control-card ph-control-reading-card">
+            <div class="ph-control-card-label">
+                <i class="bi bi-activity"></i>
+                Lectura actual
+            </div>
 
-                    <h5>pH Actual</h5>
+            <div class="ph-control-reading-row">
+                <strong id="currentPh">--</strong>
+                <span>pH</span>
+            </div>
 
-                    <h1 id="currentPh">--</h1>
+            <div class="ph-control-reading-footer">
+                <span
+                    id="phState"
+                    class="ph-control-state-badge is-neutral">
+                    SIN DATOS
+                </span>
 
-                    <span
-                        class="badge bg-success"
-                        id="phState">
-                        ESTABLE
+                <small id="phUpdatedAt">
+                    Esperando lectura
+                </small>
+            </div>
+        </article>
+
+        <article class="ph-control-card ph-control-target-card">
+            <div class="ph-control-card-header">
+                <div>
+                    <span class="ph-control-card-label">
+                        <i class="bi bi-bullseye"></i>
+                        Objetivo
                     </span>
 
+                    <strong>Valor deseado</strong>
                 </div>
+
+                <span
+                    class="ph-control-mini-range"
+                    id="targetRangePreview">
+                    --
+                </span>
             </div>
 
-        </div>
+            <label
+                class="ph-control-field-label"
+                for="targetPh">
+                pH objetivo
+            </label>
 
-        <div class="col-lg-6">
+            <div class="ph-control-input-unit">
+                <input
+                    type="number"
+                    id="targetPh"
+                    value="5.80"
+                    min="4"
+                    max="8"
+                    step="0.01">
 
-            <div class="card sensor-card">
-                <div class="card-body">
+                <span>pH</span>
+            </div>
 
-                    <h5>Objetivo</h5>
+            <button
+                type="button"
+                id="saveTargetButton"
+                class="ph-control-primary-button">
+                <i class="bi bi-check2-circle"></i>
+                Guardar objetivo
+            </button>
 
+            <div
+                id="targetMessage"
+                class="ph-control-message d-none"
+                role="alert">
+            </div>
+        </article>
+
+        <article class="ph-control-card ph-control-auto-summary">
+            <div class="ph-control-card-header">
+                <div>
+                    <span class="ph-control-card-label">
+                        <i class="bi bi-cpu"></i>
+                        Modo automático
+                    </span>
+
+                    <strong id="autoModeState">
+                        Regulación activada
+                    </strong>
+                </div>
+
+                <label class="ph-control-switch">
                     <input
-                        type="number"
-                        id="targetPh"
-                        class="form-control mb-3"
-                        value="5.80"
-                        min="4"
-                        max="8"
-                        step="0.01">
+                        type="checkbox"
+                        id="autoMode"
+                        checked>
 
-                    <button
-                        id="saveTargetButton"
-                        class="btn btn-success w-100">
-                        Guardar objetivo
-                    </button>
+                    <span></span>
+                </label>
+            </div>
 
-                    <div
-    id="targetMessage"
-    class="alert d-none mt-3"
-    role="alert">
-</div>
+            <p id="autoModeDescription">
+                HydroControl podrá corregir el pH respetando los límites configurados.
+            </p>
 
+            <div class="ph-control-auto-stats">
+                <div>
+                    <span>Duración</span>
+                    <strong id="autoDoseSummary">--</strong>
+                </div>
+
+                <div>
+                    <span>Intervalo</span>
+                    <strong id="autoIntervalSummary">--</strong>
+                </div>
+
+                <div>
+                    <span>Límite</span>
+                    <strong id="autoLimitSummary">--</strong>
+                </div>
+            </div>
+        </article>
+
+    </section>
+
+    <section class="ph-control-panel ph-manual-panel">
+        <div class="ph-control-section-heading">
+            <div class="ph-control-section-icon is-manual">
+                <i class="bi bi-hand-index-thumb"></i>
+            </div>
+
+            <div>
+                <span class="ph-control-kicker">
+                    INTERVENCIÓN DIRECTA
+                </span>
+
+                <h2>Dosificación manual</h2>
+
+                <p>
+                    Ejecutá una o varias dosis consecutivas, sin espera entre ellas.
+                </p>
+            </div>
+
+            <span
+                id="manualStatusBadge"
+                class="ph-control-status-pill is-ready">
+                Listo
+            </span>
+        </div>
+
+        <div class="ph-manual-grid">
+
+            <div class="ph-manual-actions">
+                <button
+                    type="button"
+                    id="doseMinusButton"
+                    class="ph-manual-dose-button is-minus">
+
+                    <span class="ph-manual-dose-icon">
+                        <i class="bi bi-droplet"></i>
+                        <i class="bi bi-dash-lg"></i>
+                    </span>
+
+                    <span class="ph-manual-dose-copy">
+                        <small>Reducir la lectura</small>
+                        <strong>Dosificar pH-</strong>
+                    </span>
+
+                    <span class="ph-manual-dose-count">
+                        ×<b id="doseMinusCount">1</b>
+                    </span>
+                </button>
+
+                <button
+                    type="button"
+                    id="dosePlusButton"
+                    class="ph-manual-dose-button is-plus">
+
+                    <span class="ph-manual-dose-icon">
+                        <i class="bi bi-droplet"></i>
+                        <i class="bi bi-plus-lg"></i>
+                    </span>
+
+                    <span class="ph-manual-dose-copy">
+                        <small>Aumentar la lectura</small>
+                        <strong>Dosificar pH+</strong>
+                    </span>
+
+                    <span class="ph-manual-dose-count">
+                        ×<b id="dosePlusCount">1</b>
+                    </span>
+                </button>
+
+                <div class="ph-manual-safety-note">
+                    <i class="bi bi-shield-check"></i>
+                    <span>
+                        Una orden manual pausa el modo automático para evitar dosificaciones simultáneas.
+                    </span>
                 </div>
             </div>
 
-        </div>
+            <div class="ph-manual-settings">
+                <div class="ph-manual-settings-header">
+                    <div>
+                        <span>Preparar secuencia</span>
+                        <strong id="manualSequenceEstimate">
+                            1 dosis · 1,0 s total
+                        </strong>
+                    </div>
 
-    </div>
+                    <i class="bi bi-sliders2"></i>
+                </div>
 
-    <div class="row g-4 mt-2">
+                <div class="ph-manual-count-control">
+                    <label for="manualDoseCount">
+                        Cantidad de dosis
+                    </label>
 
-        <div class="col-lg-6">
-
-            <div class="card sensor-card">
-                <div class="card-body">
-
-                    <h5>Control manual</h5>
-
-                    <div class="d-grid gap-2">
-
+                    <div>
                         <button
-                            id="doseMinusButton"
-                            class="btn btn-danger">
-                            Dosificar pH-
+                            type="button"
+                            id="manualDoseDecrease"
+                            aria-label="Restar una dosis">
+                            <i class="bi bi-dash-lg"></i>
                         </button>
-
-                        <button
-                            id="dosePlusButton"
-                            class="btn btn-primary">
-                            Dosificar pH+
-                        </button>
-
-                    </div>
-
-                    <hr class="my-4">
-
-                    <h5 class="mb-3">
-                        Configuración de dosificación
-                    </h5>
-
-                    <div class="mb-3">
-
-          <label for="doseDuration" class="form-label">
-    Duración de cada dosis
-</label>
-
-<div class="input-group">
-    <input
-        type="number"
-        id="doseDuration"
-        class="form-control"
-        value="1"
-        min="0.1"
-        max="30"
-        step="0.1">
-
-    <span class="input-group-text">
-        segundos
-    </span>
-</div>
-
-<small class="text-secondary">
-    Tiempo que permanecerá encendida la bomba.
-</small>
-
-                        <small class="text-secondary">
-                            Tiempo que permanecerá encendida la bomba.
-                        </small>
-
-                    </div>
-
-                    <div class="mb-3">
-
-                        <label
-                            for="doseInterval"
-                            class="form-label">
-                            Espera entre dosificaciones
-                        </label>
-
-                        <div class="input-group">
-
-                            <input
-                                type="number"
-                                id="doseInterval"
-                                class="form-control"
-                                value="4"
-                                min="1"
-                                max="120"
-                                step="1">
-
-                            <span class="input-group-text">
-                                minutos
-                            </span>
-
-                        </div>
-
-                    </div>
-
-                    <div class="mb-3">
-
-                        <label
-                            for="maxDoses"
-                            class="form-label">
-                            Máximo de dosis consecutivas
-                        </label>
 
                         <input
                             type="number"
-                            id="maxDoses"
-                            class="form-control"
-                            value="3"
+                            id="manualDoseCount"
+                            value="1"
                             min="1"
-                            max="10"
+                            max="3"
                             step="1">
 
+                        <button
+                            type="button"
+                            id="manualDoseIncrease"
+                            aria-label="Sumar una dosis">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
                     </div>
+                </div>
 
-                    <div class="mb-3">
+                <div class="ph-manual-config-grid">
+                    <label>
+                        <span>Duración por dosis</span>
 
-                        <label
-                            for="phTolerance"
-                            class="form-label">
-                            Margen permitido
-                        </label>
-
-                        <div class="input-group">
-
-                            <span class="input-group-text">
-                                ±
-                            </span>
-
+                        <div class="ph-control-input-unit">
                             <input
                                 type="number"
-                                id="phTolerance"
-                                class="form-control"
-                                value="0.10"
-                                min="0.01"
-                                max="1"
-                                step="0.01">
+                                id="manualDoseDuration"
+                                value="1"
+                                min="0.1"
+                                max="30"
+                                step="0.1">
 
-                            <span class="input-group-text">
-                                pH
-                            </span>
-
+                            <span>seg</span>
                         </div>
+                    </label>
 
-                    </div>
+                    <label>
+                        <span>Límite por orden</span>
 
-                    <button
-                        id="saveDoseConfigButton"
-                        class="btn btn-success w-100">
-                        Guardar configuración
-                    </button>
+                        <div class="ph-control-input-unit">
+                            <input
+                                type="number"
+                                id="manualMaxDoses"
+                                value="3"
+                                min="1"
+                                max="10"
+                                step="1">
 
-                    <div
-                        id="configMessage"
-                        class="alert d-none mt-3"
-                        role="alert">
-                    </div>
+                            <span>dosis</span>
+                        </div>
+                    </label>
+                </div>
 
+                <button
+                    type="button"
+                    id="saveManualConfigButton"
+                    class="ph-control-secondary-button">
+                    <i class="bi bi-shield-check"></i>
+                    Guardar límites manuales
+                </button>
+
+                <div
+                    id="manualConfigMessage"
+                    class="ph-control-message d-none"
+                    role="alert">
                 </div>
             </div>
 
         </div>
 
-        <div class="col-lg-6">
+        <div
+            id="manualSequencePanel"
+            class="ph-manual-runtime is-idle">
 
-            <div class="card sensor-card">
-                <div class="card-body">
+            <div class="ph-manual-runtime-top">
+                <div>
+                    <span id="manualSequenceTitle">
+                        Sin secuencia activa
+                    </span>
 
-                    <h5>Modo automático</h5>
-
-                    <div class="form-check form-switch fs-5">
-
-                        <input
-                            class="form-check-input"
-                            type="checkbox"
-                            id="autoMode"
-                            checked>
-
-                        <label
-                            class="form-check-label"
-                            for="autoMode">
-                            Activado
-                        </label>
-
-                    </div>
-
-                    <hr class="my-4">
-
-                    <p class="mb-2">
-                        El ESP32 medirá el pH continuamente.
-                    </p>
-
-                    <p class="text-secondary mb-0">
-                        Solo permitirá una nueva dosificación cuando haya transcurrido el intervalo configurado.
-                    </p>
-
+                    <strong id="manualSequenceDescription">
+                        Elegí la cantidad y presioná pH- o pH+.
+                    </strong>
                 </div>
+
+                <button
+                    type="button"
+                    id="cancelManualDoseButton"
+                    class="ph-control-danger-button d-none">
+                    <i class="bi bi-stop-circle"></i>
+                    Cancelar
+                </button>
             </div>
 
+            <div class="ph-manual-progress-track">
+                <span
+                    id="manualProgressBar"
+                    style="width: 0%">
+                </span>
+            </div>
+
+            <div class="ph-manual-runtime-stats">
+                <div>
+                    <span>Dosis actual</span>
+                    <strong id="manualCurrentDose">—</strong>
+                </div>
+
+                <div>
+                    <span>Restantes</span>
+                    <strong id="manualRemainingCount">—</strong>
+                </div>
+
+                <div>
+                    <span>Tiempo restante</span>
+                    <strong id="manualTimeRemaining">—</strong>
+                </div>
+            </div>
         </div>
 
-    </div>
+        <div
+            id="manualMessage"
+            class="ph-control-message d-none"
+            role="alert">
+        </div>
+    </section>
+
+    <section class="ph-control-panel ph-automatic-panel">
+        <div class="ph-control-section-heading">
+            <div class="ph-control-section-icon is-auto">
+                <i class="bi bi-arrow-repeat"></i>
+            </div>
+
+            <div>
+                <span class="ph-control-kicker">
+                    REGULACIÓN PROGRAMADA
+                </span>
+
+                <h2>Configuración automática</h2>
+
+                <p>
+                    Define cuándo y cuánto puede corregir HydroControl.
+                </p>
+            </div>
+        </div>
+
+        <div class="ph-automatic-grid">
+            <label>
+                <span>Margen permitido</span>
+
+                <div class="ph-control-input-unit is-double">
+                    <b>±</b>
+
+                    <input
+                        type="number"
+                        id="phTolerance"
+                        value="0.10"
+                        min="0.01"
+                        max="1"
+                        step="0.01">
+
+                    <span>pH</span>
+                </div>
+            </label>
+
+            <label>
+                <span>Duración de cada dosis</span>
+
+                <div class="ph-control-input-unit">
+                    <input
+                        type="number"
+                        id="doseDuration"
+                        value="1"
+                        min="0.1"
+                        max="30"
+                        step="0.1">
+
+                    <span>seg</span>
+                </div>
+            </label>
+
+            <label>
+                <span>Espera entre dosis</span>
+
+                <div class="ph-control-input-unit">
+                    <input
+                        type="number"
+                        id="doseInterval"
+                        value="4"
+                        min="1"
+                        max="120"
+                        step="1">
+
+                    <span>min</span>
+                </div>
+            </label>
+
+            <label>
+                <span>Máximo consecutivo</span>
+
+                <div class="ph-control-input-unit">
+                    <input
+                        type="number"
+                        id="maxDoses"
+                        value="3"
+                        min="1"
+                        max="10"
+                        step="1">
+
+                    <span>dosis</span>
+                </div>
+            </label>
+        </div>
+
+        <div class="ph-automatic-footer">
+            <div>
+                <i class="bi bi-info-circle"></i>
+                El intervalo se aplica solo a la regulación automática.
+            </div>
+
+            <button
+                type="button"
+                id="saveDoseConfigButton"
+                class="ph-control-primary-button">
+                <i class="bi bi-check2-circle"></i>
+                Guardar configuración automática
+            </button>
+        </div>
+
+        <div
+            id="configMessage"
+            class="ph-control-message d-none"
+            role="alert">
+        </div>
+    </section>
 
 </div>

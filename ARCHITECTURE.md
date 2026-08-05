@@ -11,7 +11,8 @@ El firmware está dividido por responsabilidad para evitar que `main.cpp` concen
 - `clock_manager.*`: reloj manual, programación de luz y API del reloj.
 - `event_logger.*`: registro persistente y consulta de eventos.
 - `profile_manager.*`: creación, edición, aplicación y eliminación de perfiles.
-- `ph.*`: API de configuración de pH.
+- `ph.*`: configuración y API general de pH.
+- `manual_ph_dosing.*`: secuencias manuales no bloqueantes, límites de seguridad y estado de progreso.
 - `system_manager.*`: memoria, flash, LittleFS, reinicio y diagnóstico.
 - `api.*`: estado general y versión del firmware.
 - `web_server.*`: archivos de LittleFS y registro central de rutas HTTP.

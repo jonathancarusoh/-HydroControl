@@ -54,7 +54,8 @@ void handleGetRuntimeInfo()
     json += "\",";
     json += "\"clockApi\":true,";
     json += "\"eventsApi\":true,";
-    json += "\"lightScheduleApi\":true";
+    json += "\"lightScheduleApi\":true,";
+    json += "\"lightManualApi\":true";
     json += "}";
 
     server.sendHeader("Cache-Control", "no-store");

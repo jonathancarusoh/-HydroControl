@@ -1,23 +1,21 @@
-<div class="container-fluid">
+<div class="container-fluid dashboard-page">
 
-    <div class="row mb-4">
-
-        <div class="col">
-
-            <h2 class="fw-bold">
-                Dashboard
-            </h2>
-
-            <small class="text-secondary">
-                Estado general del sistema
-            </small>
-
+    <div class="dashboard-heading mb-4">
+        <div>
+            <span class="dashboard-eyebrow">HYDROCONTROL</span>
+            <h2 class="fw-bold mb-1">Dashboard</h2>
+            <p class="text-secondary mb-0">
+                Estado general y configuración activa del sistema.
+            </p>
         </div>
 
+        <div class="dashboard-live-badge">
+            <span class="dashboard-live-dot"></span>
+            Datos en vivo
+        </div>
     </div>
 
     <section class="dashboard-clock-strip">
-
         <div class="dashboard-clock-main">
             <span class="dashboard-clock-icon">
                 <i class="bi bi-clock"></i>
@@ -32,106 +30,366 @@
             </div>
         </div>
 
-        <div class="dashboard-light-state">
-            <small>Programación de luz</small>
-            <strong id="dashboardLightState" data-state="unknown">
-                <i class="bi bi-lightbulb"></i>
-                Sin información
-            </strong>
-            <span class="dashboard-light-next" id="dashboardLightNext">---</span>
-        </div>
+        <div
+            class="dashboard-light-panel"
+            id="dashboardLightPanel"
+            data-mode="unknown">
 
+            <div class="dashboard-light-header">
+                <div class="dashboard-light-heading-copy">
+                    <small>Control de iluminación</small>
+                    <strong id="dashboardLightState" data-state="unknown">
+                        <i class="bi bi-lightbulb"></i>
+                        Sin información
+                    </strong>
+                </div>
+
+                <button
+                    type="button"
+                    class="dashboard-light-config-button"
+                    data-dashboard-page="clock"
+                    title="Configurar reloj y luz"
+                    aria-label="Abrir configuración de reloj y luz">
+                    <i class="bi bi-sliders2"></i>
+                    <span>Configurar</span>
+                </button>
+            </div>
+
+            <div class="dashboard-light-next" id="dashboardLightNext">---</div>
+
+            <div class="dashboard-light-controls">
+                <span class="dashboard-light-mode" id="dashboardLightMode">
+                    <i class="bi bi-circle-fill"></i>
+                    Sin modo definido
+                </span>
+
+                <label
+                    class="dashboard-manual-light-control"
+                    for="dashboardManualLightSwitch">
+
+                    <span class="dashboard-manual-light-copy">
+                        <strong>Control manual</strong>
+                        <small id="dashboardManualLightLabel">Apagada</small>
+                    </span>
+
+                    <input
+                        type="checkbox"
+                        id="dashboardManualLightSwitch"
+                        aria-describedby="dashboardManualLightHint">
+
+                    <span class="dashboard-manual-switch-track" aria-hidden="true">
+                        <span class="dashboard-manual-switch-thumb"></span>
+                    </span>
+                </label>
+            </div>
+
+            <small class="dashboard-light-hint" id="dashboardManualLightHint">
+                Al usar el interruptor manual se desactiva la programación automática.
+            </small>
+
+            <div
+                class="dashboard-light-message"
+                id="dashboardLightMessage"
+                role="status"
+                aria-live="polite"
+                hidden>
+            </div>
+        </div>
     </section>
 
-    <div class="row g-4">
+    <section class="dashboard-sensor-grid" aria-label="Lecturas principales">
 
-        <div class="col-xl-3 col-lg-6">
+        <article class="dashboard-sensor-card" data-dashboard-card="ph">
+            <button
+                type="button"
+                class="dashboard-sensor-toggle"
+                aria-expanded="false"
+                aria-controls="dashboardPhDetails">
 
-            <div class="card sensor-card h-100">
-
-                <div class="card-body">
-
-                    <h6>🧪 pH</h6>
-
-                    <h1 id="phValue">--</h1>
-
-                    <span
-                    id="phStatus"
-                    class="badge bg-success">
-
-                    ESTABLE
-
+                <span class="dashboard-sensor-topline">
+                    <span class="dashboard-card-icon dashboard-card-icon-ph">
+                        <i class="bi bi-droplet-half"></i>
                     </span>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-xl-3 col-lg-6">
-
-            <div class="card sensor-card h-100">
-
-                <div class="card-body">
-
-                    <h6>💧 EC</h6>
-
-                    <h1 id="ecValue">--</h1>
-
-                    <span
-                    class="badge bg-success">
-
-                    NORMAL
-
+                    <span class="dashboard-sensor-title">pH</span>
+                    <span class="dashboard-expand-icon" aria-hidden="true">
+                        <i class="bi bi-chevron-down"></i>
                     </span>
+                </span>
 
+                <span class="dashboard-sensor-value" id="phValue">--</span>
+                <span class="dashboard-sensor-unit">pH de la solución</span>
+
+                <span class="dashboard-sensor-footer">
+                    <span id="phStatus" class="dashboard-status-pill" data-state="unknown">
+                        SIN DATOS
+                    </span>
+                    <span class="dashboard-view-details">Ver detalles</span>
+                </span>
+            </button>
+
+            <div class="dashboard-sensor-details" id="dashboardPhDetails" hidden>
+                <div class="dashboard-details-heading">
+                    <div>
+                        <small>CONFIGURACIÓN ACTIVA</small>
+                        <h3 id="dashboardAutoModeLabel">Modo de pH</h3>
+                    </div>
+
+                    <div class="dashboard-details-actions">
+                        <span
+                            class="dashboard-automation-state"
+                            id="dashboardAutoModeState"
+                            data-enabled="false">
+                            <i class="bi bi-circle-fill"></i>
+                            Desconocido
+                        </span>
+
+                        <button
+                            type="button"
+                            class="dashboard-config-button"
+                            data-dashboard-page="ph"
+                            title="Configurar pH"
+                            aria-label="Abrir configuración de pH">
+                            <i class="bi bi-sliders2"></i>
+                            <span>Configurar</span>
+                        </button>
+                    </div>
                 </div>
 
-            </div>
+                <div class="dashboard-detail-grid" id="dashboardAutoDetails">
+                    <div class="dashboard-detail-item">
+                        <span>Objetivo</span>
+                        <strong id="dashboardTargetPh">--</strong>
+                    </div>
 
-        </div>
+                    <div class="dashboard-detail-item">
+                        <span>Rango permitido</span>
+                        <strong id="dashboardPhRange">--</strong>
+                    </div>
 
-        <div class="col-xl-3 col-lg-6">
+                    <div class="dashboard-detail-item">
+                        <span>Duración de dosis</span>
+                        <strong id="dashboardDoseDuration">--</strong>
+                    </div>
 
-            <div class="card sensor-card h-100">
+                    <div class="dashboard-detail-item">
+                        <span>Espera entre dosis</span>
+                        <strong id="dashboardDoseInterval">--</strong>
+                    </div>
 
-                <div class="card-body">
+                    <div class="dashboard-detail-item">
+                        <span>Límite consecutivo</span>
+                        <strong id="dashboardMaxDoses">--</strong>
+                    </div>
 
-                    <h6>🌡 Agua</h6>
-
-                    <h1 id="waterTemp">
-
-                    --
-
-                    </h1>
-
+                    <div class="dashboard-detail-item">
+                        <span>Última lectura</span>
+                        <strong id="dashboardLastUpdate">Esperando</strong>
+                    </div>
                 </div>
 
+                <div class="dashboard-info-message d-none" id="dashboardAutoDisabledMessage">
+                    <i class="bi bi-hand-index-thumb"></i>
+                    <span id="dashboardAutoDisabledText">
+                        El control automático está desactivado.
+                    </span>
+                </div>
             </div>
+        </article>
 
-        </div>
+        <article class="dashboard-sensor-card" data-dashboard-card="ec">
+            <button
+                type="button"
+                class="dashboard-sensor-toggle"
+                aria-expanded="false"
+                aria-controls="dashboardEcDetails">
 
-        <div class="col-xl-3 col-lg-6">
+                <span class="dashboard-sensor-topline">
+                    <span class="dashboard-card-icon dashboard-card-icon-ec">
+                        <i class="bi bi-bezier2"></i>
+                    </span>
+                    <span class="dashboard-sensor-title">EC</span>
+                    <span class="dashboard-expand-icon" aria-hidden="true">
+                        <i class="bi bi-chevron-down"></i>
+                    </span>
+                </span>
 
-            <div class="card sensor-card h-100">
+                <span class="dashboard-sensor-value" id="ecValue">--</span>
+                <span class="dashboard-sensor-unit">mS/cm</span>
 
-                <div class="card-body">
+                <span class="dashboard-sensor-footer">
+                    <span class="dashboard-reading-label">Lectura actual</span>
+                    <span class="dashboard-view-details">Ver detalles</span>
+                </span>
+            </button>
 
-                    <h6>💨 Humedad</h6>
+            <div class="dashboard-sensor-details" id="dashboardEcDetails" hidden>
+                <div class="dashboard-details-heading">
+                    <div>
+                        <small>CONDUCTIVIDAD</small>
+                        <h3>Configuración de EC</h3>
+                    </div>
 
-                    <h1 id="humidity">
-
-                    --
-
-                    </h1>
-
+                    <button
+                        type="button"
+                        class="dashboard-config-button"
+                        data-dashboard-page="ec"
+                        title="Abrir EC"
+                        aria-label="Abrir página de EC">
+                        <i class="bi bi-sliders2"></i>
+                        <span>Configurar</span>
+                    </button>
                 </div>
 
+                <div class="dashboard-detail-grid">
+                    <div class="dashboard-detail-item">
+                        <span>Lectura actual</span>
+                        <strong id="dashboardEcCurrent">--</strong>
+                    </div>
+
+                    <div class="dashboard-detail-item">
+                        <span>Objetivo guardado</span>
+                        <strong id="dashboardTargetEc">--</strong>
+                    </div>
+
+                    <div class="dashboard-detail-item">
+                        <span>Diferencia</span>
+                        <strong id="dashboardEcDifference">--</strong>
+                    </div>
+
+                    <div class="dashboard-detail-item">
+                        <span>Unidad</span>
+                        <strong>mS/cm</strong>
+                    </div>
+                </div>
             </div>
+        </article>
 
-        </div>
+        <article class="dashboard-sensor-card" data-dashboard-card="temperature">
+            <button
+                type="button"
+                class="dashboard-sensor-toggle"
+                aria-expanded="false"
+                aria-controls="dashboardTemperatureDetails">
 
-    </div>
+                <span class="dashboard-sensor-topline">
+                    <span class="dashboard-card-icon dashboard-card-icon-temp">
+                        <i class="bi bi-thermometer-half"></i>
+                    </span>
+                    <span class="dashboard-sensor-title">Agua</span>
+                    <span class="dashboard-expand-icon" aria-hidden="true">
+                        <i class="bi bi-chevron-down"></i>
+                    </span>
+                </span>
+
+                <span class="dashboard-sensor-value" id="waterTemp">--</span>
+                <span class="dashboard-sensor-unit">°C · Temperatura del agua</span>
+
+                <span class="dashboard-sensor-footer">
+                    <span class="dashboard-reading-label">Lectura actual</span>
+                    <span class="dashboard-view-details">Ver detalles</span>
+                </span>
+            </button>
+
+            <div class="dashboard-sensor-details" id="dashboardTemperatureDetails" hidden>
+                <div class="dashboard-details-heading">
+                    <div>
+                        <small>TEMPERATURA DEL AGUA</small>
+                        <h3>Detalle del sensor</h3>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="dashboard-config-button"
+                        data-dashboard-page="sensors"
+                        title="Abrir sensores"
+                        aria-label="Abrir página de sensores">
+                        <i class="bi bi-sliders2"></i>
+                        <span>Configurar</span>
+                    </button>
+                </div>
+
+                <div class="dashboard-detail-grid">
+                    <div class="dashboard-detail-item">
+                        <span>Lectura actual</span>
+                        <strong id="dashboardWaterCurrent">--</strong>
+                    </div>
+
+                    <div class="dashboard-detail-item">
+                        <span>Unidad</span>
+                        <strong>°C</strong>
+                    </div>
+
+                    <div class="dashboard-detail-item dashboard-detail-note">
+                        <span>Parámetros</span>
+                        <strong>Sin límites configurados</strong>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <article class="dashboard-sensor-card" data-dashboard-card="humidity">
+            <button
+                type="button"
+                class="dashboard-sensor-toggle"
+                aria-expanded="false"
+                aria-controls="dashboardHumidityDetails">
+
+                <span class="dashboard-sensor-topline">
+                    <span class="dashboard-card-icon dashboard-card-icon-humidity">
+                        <i class="bi bi-wind"></i>
+                    </span>
+                    <span class="dashboard-sensor-title">Humedad</span>
+                    <span class="dashboard-expand-icon" aria-hidden="true">
+                        <i class="bi bi-chevron-down"></i>
+                    </span>
+                </span>
+
+                <span class="dashboard-sensor-value" id="humidity">--</span>
+                <span class="dashboard-sensor-unit">% · Humedad ambiente</span>
+
+                <span class="dashboard-sensor-footer">
+                    <span class="dashboard-reading-label">Lectura actual</span>
+                    <span class="dashboard-view-details">Ver detalles</span>
+                </span>
+            </button>
+
+            <div class="dashboard-sensor-details" id="dashboardHumidityDetails" hidden>
+                <div class="dashboard-details-heading">
+                    <div>
+                        <small>HUMEDAD AMBIENTE</small>
+                        <h3>Detalle del sensor</h3>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="dashboard-config-button"
+                        data-dashboard-page="sensors"
+                        title="Abrir sensores"
+                        aria-label="Abrir página de sensores">
+                        <i class="bi bi-sliders2"></i>
+                        <span>Configurar</span>
+                    </button>
+                </div>
+
+                <div class="dashboard-detail-grid">
+                    <div class="dashboard-detail-item">
+                        <span>Lectura actual</span>
+                        <strong id="dashboardHumidityCurrent">--</strong>
+                    </div>
+
+                    <div class="dashboard-detail-item">
+                        <span>Unidad</span>
+                        <strong>% HR</strong>
+                    </div>
+
+                    <div class="dashboard-detail-item dashboard-detail-note">
+                        <span>Parámetros</span>
+                        <strong>Sin límites configurados</strong>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+    </section>
 
 </div>

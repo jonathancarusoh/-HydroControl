@@ -3,6 +3,7 @@
 #include "clock_manager.h"
 #include "config.h"
 #include "event_logger.h"
+#include "manual_ph_dosing.h"
 #include "profile_manager.h"
 #include "utils.h"
 
@@ -37,6 +38,17 @@ void handleGetConfig()
         ? "true"
         : "false";
 
+    json += ",\"manualDoseSeconds\":" +
+        String(config.manualDoseDurationMs / 1000.0f, 1);
+
+    json += ",\"manualMaxDoses\":" +
+        String(config.manualMaxDoses);
+
+    json += ",\"manualDosingActive\":";
+    json += isManualPhDosingActive()
+        ? "true"
+        : "false";
+
     json += ",\"targetEc\":" +
         String(config.targetEc, 2);
 
@@ -56,6 +68,11 @@ void handleGetConfig()
 
     json += ",\"lightScheduleEnabled\":";
     json += config.lightScheduleEnabled
+        ? "true"
+        : "false";
+
+    json += ",\"lightManualOn\":";
+    json += config.lightManualOn
         ? "true"
         : "false";
 
@@ -84,7 +101,9 @@ void handleSaveConfig()
         !server.hasArg("doseSeconds") ||
         !server.hasArg("intervalMinutes") ||
         !server.hasArg("maxDoses") ||
-        !server.hasArg("automaticMode")
+        !server.hasArg("automaticMode") ||
+        !server.hasArg("manualDoseSeconds") ||
+        !server.hasArg("manualMaxDoses")
     )
     {
         server.send(
@@ -115,6 +134,25 @@ void handleSaveConfig()
     bool automaticMode =
         server.arg("automaticMode") == "true";
 
+    float manualDoseSeconds =
+        server.arg("manualDoseSeconds").toFloat();
+
+    int manualMaxDoses =
+        server.arg("manualMaxDoses").toInt();
+
+    if (
+        automaticMode &&
+        isManualPhDosingActive()
+    )
+    {
+        server.send(
+            409,
+            "application/json",
+            "{\"success\":false,\"message\":\"No se puede activar el modo automático durante una secuencia manual.\"}"
+        );
+        return;
+    }
+
     if (
         targetPh < 4.0f ||
         targetPh > 8.0f ||
@@ -125,7 +163,11 @@ void handleSaveConfig()
         intervalMinutes < 1 ||
         intervalMinutes > 120 ||
         maxDoses < 1 ||
-        maxDoses > 10
+        maxDoses > 10 ||
+        manualDoseSeconds < 0.1f ||
+        manualDoseSeconds > 30.0f ||
+        manualMaxDoses < 1 ||
+        manualMaxDoses > 10
     )
     {
         server.send(
@@ -144,6 +186,10 @@ void handleSaveConfig()
     uint32_t previousDoseInterval = config.doseIntervalMinutes;
     uint8_t previousMaxDoses = config.maxConsecutiveDoses;
     bool previousAutomaticMode = config.automaticMode;
+    uint32_t previousManualDoseDuration =
+        config.manualDoseDurationMs;
+    uint8_t previousManualMaxDoses =
+        config.manualMaxDoses;
 
     config.targetPh = targetPh;
     config.phTolerance = tolerance;
@@ -164,6 +210,12 @@ void handleSaveConfig()
         );
 
     config.automaticMode = automaticMode;
+
+    config.manualDoseDurationMs =
+        static_cast<uint32_t>(manualDoseSeconds * 1000.0f);
+
+    config.manualMaxDoses =
+        static_cast<uint8_t>(manualMaxDoses);
 
     saveConfig();
 
@@ -225,6 +277,25 @@ void handleSaveConfig()
         changes += config.automaticMode
             ? "Automático activado"
             : "Automático desactivado";
+    }
+
+    if (previousManualDoseDuration != config.manualDoseDurationMs)
+    {
+        if (!changes.isEmpty()) changes += " · ";
+        changes += "Dosis manual ";
+        changes += String(previousManualDoseDuration / 1000.0f, 1);
+        changes += " s → ";
+        changes += String(config.manualDoseDurationMs / 1000.0f, 1);
+        changes += " s";
+    }
+
+    if (previousManualMaxDoses != config.manualMaxDoses)
+    {
+        if (!changes.isEmpty()) changes += " · ";
+        changes += "Límite manual ";
+        changes += String(previousManualMaxDoses);
+        changes += " → ";
+        changes += String(config.manualMaxDoses);
     }
 
     if (!changes.isEmpty())

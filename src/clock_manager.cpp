@@ -256,38 +256,52 @@ bool isLightScheduledOnNow()
         currentMinutes < offMinutes;
 }
 
-String getLightStateCode()
+bool isLightEffectivelyOn()
 {
-    if (!config.lightScheduleEnabled)
+    if (config.lightScheduleEnabled)
     {
-        return "disabled";
+        return isLightScheduledOnNow();
     }
 
-    if (!clockConfigured)
+    return config.lightManualOn;
+}
+
+String getLightControlMode()
+{
+    return config.lightScheduleEnabled
+        ? "automatic"
+        : "manual";
+}
+
+String getLightStateCode()
+{
+    if (config.lightScheduleEnabled && !clockConfigured)
     {
         return "unknown";
     }
 
-    return isLightScheduledOnNow()
-        ? "on"
-        : "off";
+    if (config.lightScheduleEnabled)
+    {
+        return isLightScheduledOnNow()
+            ? "on"
+            : "off";
+    }
+
+    return config.lightManualOn
+        ? "manual-on"
+        : "manual-off";
 }
 
 String getLightStateLabel()
 {
     String state = getLightStateCode();
 
-    if (state == "disabled")
-    {
-        return "Horario desactivado";
-    }
-
     if (state == "unknown")
     {
         return "Reloj sin configurar";
     }
 
-    return state == "on"
+    return isLightEffectivelyOn()
         ? "Lámpara encendida"
         : "Lámpara apagada";
 }
@@ -321,7 +335,9 @@ String getLightNextChangeLabel()
 {
     if (!config.lightScheduleEnabled)
     {
-        return "Horario desactivado";
+        return config.lightManualOn
+            ? "Control manual encendido"
+            : "Control manual apagado";
     }
 
     struct tm timeInfo;
@@ -386,6 +402,21 @@ void appendClockAndLightJson(String& json)
     json += "\"light\":{";
     json += "\"enabled\":";
     json += config.lightScheduleEnabled
+        ? "true"
+        : "false";
+    json += ",\"mode\":\"";
+    json += getLightControlMode();
+    json += "\"";
+    json += ",\"automaticEnabled\":";
+    json += config.lightScheduleEnabled
+        ? "true"
+        : "false";
+    json += ",\"manualOn\":";
+    json += config.lightManualOn
+        ? "true"
+        : "false";
+    json += ",\"effectiveOn\":";
+    json += isLightEffectivelyOn()
         ? "true"
         : "false";
     json += ",\"on\":\"";
@@ -594,3 +625,97 @@ void handleSaveLightSchedule()
         "\"message\":\"Programación de luz guardada.\"}"
     );
 }
+
+void handleSetManualLight()
+{
+    if (!server.hasArg("state"))
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"Falta indicar el estado manual.\"}"
+        );
+        return;
+    }
+
+    String stateText = server.arg("state");
+
+    if (
+        stateText != "true" &&
+        stateText != "false" &&
+        stateText != "1" &&
+        stateText != "0"
+    )
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"El estado manual no es válido.\"}"
+        );
+        return;
+    }
+
+    bool requestedOn =
+        stateText == "true" ||
+        stateText == "1";
+
+    bool automaticWasEnabled =
+        config.lightScheduleEnabled;
+
+    bool changed =
+        automaticWasEnabled ||
+        config.lightManualOn != requestedOn;
+
+    config.lightScheduleEnabled = false;
+    config.lightManualOn = requestedOn;
+
+    saveConfig();
+    setActiveProfileSlot(-1);
+
+    if (changed)
+    {
+        String detail = requestedOn
+            ? "Control manual encendido"
+            : "Control manual apagado";
+
+        if (automaticWasEnabled)
+        {
+            detail += " · Programación automática desactivada";
+        }
+
+        logEvent(
+            "light",
+            requestedOn
+                ? "Lámpara encendida manualmente"
+                : "Lámpara apagada manualmente",
+            detail
+        );
+    }
+
+    String json = "{";
+    json += "\"success\":true,";
+    json += "\"message\":\"";
+    json += requestedOn
+        ? "Control manual encendido."
+        : "Control manual apagado.";
+    json += "\",";
+    json += "\"automaticDisabled\":";
+    json += automaticWasEnabled
+        ? "true"
+        : "false";
+    json += ",\"manualOn\":";
+    json += requestedOn
+        ? "true"
+        : "false";
+    json += "}";
+
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+}
+

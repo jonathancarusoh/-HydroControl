@@ -9,9 +9,9 @@ void logEvent(
 );
 
 void recordDosageEvent(
-    const String& product,
-    float durationSeconds,
-    const String& reason
+    const String& channel,
+    uint32_t durationMs,
+    bool automatic
 );
 
 size_t getEventLogTotalBytes();
