@@ -230,6 +230,12 @@ void registerServerRoutes()
     );
 
     server.on(
+        "/api/light/automatic",
+        HTTP_POST,
+        handleSetAutomaticLight
+    );
+
+    server.on(
         "/api/light/manual",
         HTTP_POST,
         handleSetManualLight

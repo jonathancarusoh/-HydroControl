@@ -8,7 +8,7 @@ El firmware está dividido por responsabilidad para evitar que `main.cpp` concen
 - `config.*`: carga y guardado de la configuración general en NVS (`Preferences`).
 - `wifi_manager.*`: modo local, credenciales, conexión al router y mDNS.
 - `wifi_portal.*`: interfaz HTML del portal inicial de configuración WiFi.
-- `clock_manager.*`: reloj manual, programación de luz y API del reloj.
+- `clock_manager.*`: reloj manual, programación de luz, control automático/manual y API del reloj.
 - `event_logger.*`: registro persistente y consulta de eventos.
 - `profile_manager.*`: creación, edición, aplicación y eliminación de perfiles.
 - `ph.*`: configuración y API general de pH.

@@ -3371,6 +3371,177 @@ body {
     }
 }
 
+
+/* =====================================================
+   DASHBOARD — CONTROLES DE LUZ AUTOMÁTICO Y MANUAL
+===================================================== */
+
+.dashboard-light-panel.is-inactive {
+    border-color: rgba(255, 105, 105, 0.42);
+    background:
+        linear-gradient(
+            135deg,
+            rgba(153, 41, 41, 0.18),
+            rgba(67, 27, 31, 0.22)
+        );
+    box-shadow: inset 0 0 0 1px rgba(255, 105, 105, 0.035);
+}
+
+.dashboard-light-panel.is-inactive
+.dashboard-light-heading-copy strong,
+.dashboard-light-heading-copy strong[data-state="inactive"] {
+    color: #ffaaaa;
+}
+
+.dashboard-light-panel.is-inactive .dashboard-light-next {
+    color: #e7a5a5;
+}
+
+.dashboard-light-panel.is-inactive .dashboard-light-mode {
+    color: #ffabab;
+}
+
+.dashboard-light-panel.is-inactive .dashboard-light-mode i {
+    color: #ff7777;
+}
+
+.dashboard-light-controls {
+    align-items: flex-start;
+}
+
+.dashboard-light-switches {
+    display: grid;
+    flex: 0 0 min(250px, 52%);
+    width: min(250px, 52%);
+    gap: 8px;
+}
+
+.dashboard-light-switch-control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 45px;
+    margin: 0;
+    padding: 7px 9px 7px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: 11px;
+    background: rgba(8, 11, 14, 0.16);
+    cursor: pointer;
+    user-select: none;
+    transition:
+        border-color 0.18s ease,
+        background 0.18s ease;
+}
+
+.dashboard-light-switch-control:hover {
+    border-color: rgba(97, 183, 255, 0.28);
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.dashboard-light-switch-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.dashboard-light-switch-copy strong {
+    overflow-wrap: anywhere;
+    color: #e2e7ec;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.dashboard-light-switch-copy small {
+    margin-top: 3px;
+    color: #8f99a5;
+    font-size: 10px;
+}
+
+.dashboard-light-switch-control input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.dashboard-light-switch-track {
+    position: relative;
+    display: inline-block;
+    flex: 0 0 46px;
+    width: 46px;
+    height: 27px;
+    border: 1px solid #59626d;
+    border-radius: 999px;
+    background: #333941;
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease,
+        opacity 0.2s ease;
+}
+
+.dashboard-light-switch-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: #c9cfd6;
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease;
+}
+
+.dashboard-light-switch-control
+input:checked + .dashboard-light-switch-track {
+    border-color: rgba(56, 217, 138, 0.62);
+    background: rgba(56, 217, 138, 0.29);
+}
+
+.dashboard-light-switch-control
+input:checked + .dashboard-light-switch-track
+.dashboard-light-switch-thumb {
+    transform: translateX(19px);
+    background: #64e5a5;
+}
+
+.dashboard-light-switch-control
+input:focus-visible + .dashboard-light-switch-track {
+    outline: 3px solid rgba(97, 183, 255, 0.48);
+    outline-offset: 2px;
+}
+
+.dashboard-light-switch-control
+input:disabled + .dashboard-light-switch-track {
+    opacity: 0.48;
+    cursor: wait;
+}
+
+.dashboard-light-switch-control:has(input:checked) {
+    border-color: rgba(56, 217, 138, 0.24);
+    background: rgba(56, 217, 138, 0.055);
+}
+
+@media (max-width: 575.98px) {
+    .dashboard-light-controls {
+        gap: 12px;
+    }
+
+    .dashboard-light-switches {
+        width: 100%;
+        flex-basis: 100%;
+    }
+
+    .dashboard-light-switch-control {
+        width: 100%;
+    }
+}
+
 /* =====================================================
    CONTROL DE PH — INTERFAZ MODERNA
 ===================================================== */

@@ -21,4 +21,5 @@ void appendClockAndLightJson(String& json);
 void handleGetClockStatus();
 void handleSetClock();
 void handleSaveLightSchedule();
+void handleSetAutomaticLight();
 void handleSetManualLight();

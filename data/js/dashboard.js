@@ -9,7 +9,8 @@ const dashboardConfigCache = {
 };
 
 const dashboardLightControlState = {
-    requestInProgress: false
+    requestInProgress: false,
+    lastLightData: null
 };
 
 function dashboardFormatLongDate(date) {
@@ -121,15 +122,29 @@ function dashboardRenderLight(lightData) {
     const stateElement = document.getElementById("dashboardLightState");
     const nextElement = document.getElementById("dashboardLightNext");
     const modeElement = document.getElementById("dashboardLightMode");
-    const manualSwitch = document.getElementById("dashboardManualLightSwitch");
-    const manualLabel = document.getElementById("dashboardManualLightLabel");
-    const hintElement = document.getElementById("dashboardManualLightHint");
+    const automaticSwitch = document.getElementById(
+        "dashboardAutomaticLightSwitch"
+    );
+    const automaticLabel = document.getElementById(
+        "dashboardAutomaticLightLabel"
+    );
+    const manualSwitch = document.getElementById(
+        "dashboardManualLightSwitch"
+    );
+    const manualLabel = document.getElementById(
+        "dashboardManualLightLabel"
+    );
+    const hintElement = document.getElementById(
+        "dashboardLightControlHint"
+    );
 
     if (
         !panel ||
         !stateElement ||
         !nextElement ||
         !modeElement ||
+        !automaticSwitch ||
+        !automaticLabel ||
         !manualSwitch ||
         !manualLabel ||
         !hintElement
@@ -137,46 +152,187 @@ function dashboardRenderLight(lightData) {
         return;
     }
 
+    dashboardLightControlState.lastLightData = lightData || null;
+
     const automaticEnabled = Boolean(
         lightData?.automaticEnabled ?? lightData?.enabled
     );
 
+    const manualOn = Boolean(lightData?.manualOn);
+
     const stateCode = lightData?.stateCode || "unknown";
+
     const effectiveOn = lightData?.effectiveOn !== undefined
         ? Boolean(lightData.effectiveOn)
         : stateCode === "on" || stateCode === "manual-on";
 
-    const mode = lightData
-        ? (automaticEnabled ? "automatic" : "manual")
-        : "unknown";
+    const hasLightData = Boolean(lightData);
+    const noControlActive =
+        hasLightData &&
+        !automaticEnabled &&
+        !manualOn;
+
+    const mode = !hasLightData
+        ? "unknown"
+        : automaticEnabled
+            ? "automatic"
+            : manualOn
+                ? "manual"
+                : "inactive";
 
     panel.dataset.mode = mode;
     panel.classList.toggle("is-automatic", automaticEnabled);
-    panel.classList.toggle("is-manual-on", mode === "manual" && effectiveOn);
+    panel.classList.toggle(
+        "is-manual-on",
+        !automaticEnabled && manualOn
+    );
+    panel.classList.toggle("is-inactive", noControlActive);
 
     const icon = effectiveOn
         ? "bi-lightbulb-fill"
         : "bi-lightbulb";
 
-    stateElement.dataset.state = stateCode;
+    stateElement.dataset.state = noControlActive
+        ? "inactive"
+        : stateCode;
+
     stateElement.innerHTML = `
         <i class="bi ${icon}"></i>
         ${lightData?.stateLabel || "Sin información"}
     `;
 
-    nextElement.textContent = lightData?.nextChangeLabel || "---";
+    if (noControlActive) {
+        nextElement.textContent =
+            "Sin programación automática ni encendido manual";
+    } else {
+        nextElement.textContent =
+            lightData?.nextChangeLabel || "---";
+    }
 
-    modeElement.innerHTML = automaticEnabled
-        ? '<i class="bi bi-circle-fill"></i> Programación automática'
-        : '<i class="bi bi-hand-index-thumb"></i> Control manual';
+    if (!hasLightData) {
+        modeElement.innerHTML =
+            '<i class="bi bi-circle-fill"></i> Sin información';
+    } else if (automaticEnabled) {
+        modeElement.innerHTML =
+            '<i class="bi bi-circle-fill"></i> Programación automática activa';
+    } else if (manualOn) {
+        modeElement.innerHTML =
+            '<i class="bi bi-hand-index-thumb"></i> Control manual activo';
+    } else {
+        modeElement.innerHTML =
+            '<i class="bi bi-exclamation-circle"></i> Sin control activo';
+    }
 
-    manualSwitch.checked = effectiveOn;
-    manualSwitch.disabled = dashboardLightControlState.requestInProgress;
-    manualLabel.textContent = effectiveOn ? "Encendida" : "Apagada";
+    automaticSwitch.checked = automaticEnabled;
+    automaticSwitch.disabled =
+        dashboardLightControlState.requestInProgress ||
+        !hasLightData;
 
-    hintElement.textContent = automaticEnabled
-        ? "Al mover esta llave se desactiva la programación automática y queda el control manual."
-        : "La llave define el estado manual. La salida física se conectará más adelante al relé.";
+    automaticLabel.textContent = automaticEnabled
+        ? "Activado"
+        : "Desactivado";
+
+    // El control manual refleja únicamente el estado manual guardado.
+    // No debe encenderse visualmente porque la lámpara esté encendida
+    // por el horario automático.
+    manualSwitch.checked = manualOn;
+    manualSwitch.disabled =
+        dashboardLightControlState.requestInProgress ||
+        !hasLightData;
+
+    manualLabel.textContent = manualOn
+        ? "Encendido"
+        : "Apagado";
+
+    if (!hasLightData) {
+        hintElement.textContent =
+            "No se pudo consultar el control de iluminación.";
+    } else if (automaticEnabled) {
+        hintElement.textContent =
+            "La lámpara sigue el horario configurado. Al activar el modo manual, el automático se desactiva.";
+    } else if (manualOn) {
+        hintElement.textContent =
+            "La lámpara está bajo control manual. Podés apagarla desde esta llave o volver a activar el horario.";
+    } else {
+        hintElement.textContent =
+            "Ambos controles están apagados. Activá el horario automático o encendé la lámpara manualmente.";
+    }
+}
+
+async function dashboardSetAutomaticLight(requestedEnabled) {
+    if (dashboardLightControlState.requestInProgress) {
+        return;
+    }
+
+    const automaticSwitch = document.getElementById(
+        "dashboardAutomaticLightSwitch"
+    );
+    const manualSwitch = document.getElementById(
+        "dashboardManualLightSwitch"
+    );
+
+    dashboardLightControlState.requestInProgress = true;
+
+    if (automaticSwitch) {
+        automaticSwitch.disabled = true;
+    }
+
+    if (manualSwitch) {
+        manualSwitch.disabled = true;
+    }
+
+    dashboardShowLightMessage(
+        requestedEnabled
+            ? "Activando programación automática..."
+            : "Desactivando programación automática...",
+        null
+    );
+
+    try {
+        const body = new URLSearchParams({
+            state: requestedEnabled ? "true" : "false"
+        });
+
+        const response = await fetch("/api/light/automatic", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: body.toString()
+        });
+
+        const result = await dashboardReadJson(response);
+
+        if (!response.ok || result.success === false) {
+            throw new Error(
+                result.message ||
+                "No se pudo cambiar la programación automática."
+            );
+        }
+
+        dashboardShowLightMessage(result.message, true);
+        dashboardConfigCache.fetchedAtMs = 0;
+
+        await updateDashboard();
+    } catch (error) {
+        console.error(
+            "Error cambiando la programación automática:",
+            error
+        );
+
+        dashboardShowLightMessage(error.message, false);
+        await updateDashboard();
+    } finally {
+        dashboardLightControlState.requestInProgress = false;
+
+        if (automaticSwitch) {
+            automaticSwitch.disabled = false;
+        }
+
+        if (manualSwitch) {
+            manualSwitch.disabled = false;
+        }
+    }
 }
 
 async function dashboardSetManualLight(requestedOn) {
@@ -184,9 +340,18 @@ async function dashboardSetManualLight(requestedOn) {
         return;
     }
 
-    const manualSwitch = document.getElementById("dashboardManualLightSwitch");
+    const automaticSwitch = document.getElementById(
+        "dashboardAutomaticLightSwitch"
+    );
+    const manualSwitch = document.getElementById(
+        "dashboardManualLightSwitch"
+    );
 
     dashboardLightControlState.requestInProgress = true;
+
+    if (automaticSwitch) {
+        automaticSwitch.disabled = true;
+    }
 
     if (manualSwitch) {
         manualSwitch.disabled = true;
@@ -194,7 +359,7 @@ async function dashboardSetManualLight(requestedOn) {
 
     dashboardShowLightMessage(
         requestedOn
-            ? "Activando control manual..."
+            ? "Encendiendo control manual..."
             : "Apagando control manual...",
         null
     );
@@ -228,16 +393,17 @@ async function dashboardSetManualLight(requestedOn) {
         );
 
         dashboardConfigCache.fetchedAtMs = 0;
-
         await updateDashboard();
     } catch (error) {
         console.error("Error cambiando la luz manual:", error);
         dashboardShowLightMessage(error.message, false);
-
-        // Recupera el estado real si la solicitud falló.
         await updateDashboard();
     } finally {
         dashboardLightControlState.requestInProgress = false;
+
+        if (automaticSwitch) {
+            automaticSwitch.disabled = false;
+        }
 
         if (manualSwitch) {
             manualSwitch.disabled = false;
@@ -511,7 +677,23 @@ function dashboardBindActions() {
             });
         });
 
-    const manualSwitch = document.getElementById("dashboardManualLightSwitch");
+    const automaticSwitch = document.getElementById(
+        "dashboardAutomaticLightSwitch"
+    );
+
+    if (
+        automaticSwitch &&
+        automaticSwitch.dataset.bound !== "true"
+    ) {
+        automaticSwitch.dataset.bound = "true";
+        automaticSwitch.addEventListener("change", () => {
+            dashboardSetAutomaticLight(automaticSwitch.checked);
+        });
+    }
+
+    const manualSwitch = document.getElementById(
+        "dashboardManualLightSwitch"
+    );
 
     if (manualSwitch && manualSwitch.dataset.bound !== "true") {
         manualSwitch.dataset.bound = "true";

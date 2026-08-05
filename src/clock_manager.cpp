@@ -626,6 +626,109 @@ void handleSaveLightSchedule()
     );
 }
 
+void handleSetAutomaticLight()
+{
+    if (!server.hasArg("state"))
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"Falta indicar el estado automático.\"}"
+        );
+        return;
+    }
+
+    String stateText = server.arg("state");
+
+    if (
+        stateText != "true" &&
+        stateText != "false" &&
+        stateText != "1" &&
+        stateText != "0"
+    )
+    {
+        server.send(
+            400,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"El estado automático no es válido.\"}"
+        );
+        return;
+    }
+
+    bool requestedEnabled =
+        stateText == "true" ||
+        stateText == "1";
+
+    if (requestedEnabled && !clockConfigured)
+    {
+        server.send(
+            409,
+            "application/json; charset=utf-8",
+            "{\"success\":false,"
+            "\"message\":\"Configurá primero la fecha y la hora del HydroControl.\"}"
+        );
+        return;
+    }
+
+    bool changed =
+        config.lightScheduleEnabled != requestedEnabled ||
+        config.lightManualOn;
+
+    config.lightScheduleEnabled = requestedEnabled;
+
+    // Los modos son excluyentes. Al cambiar el automático,
+    // el estado manual vuelve siempre a apagado para evitar
+    // que una orden manual antigua quede activa.
+    config.lightManualOn = false;
+
+    saveConfig();
+    setActiveProfileSlot(-1);
+
+    if (changed)
+    {
+        logEvent(
+            "light",
+            requestedEnabled
+                ? "Programación automática activada"
+                : "Programación automática desactivada",
+            requestedEnabled
+                ? String("Horario activo: ") +
+                    formatTime(
+                        config.lightOnHour,
+                        config.lightOnMinute
+                    ) +
+                    " a " +
+                    formatTime(
+                        config.lightOffHour,
+                        config.lightOffMinute
+                    )
+                : "Control automático apagado · Control manual apagado"
+        );
+    }
+
+    String json = "{";
+    json += "\"success\":true,";
+    json += "\"message\":\"";
+    json += requestedEnabled
+        ? "Programación automática activada."
+        : "Programación automática desactivada.";
+    json += "\",";
+    json += "\"automaticEnabled\":";
+    json += requestedEnabled ? "true" : "false";
+    json += ",\"manualOn\":false";
+    json += "}";
+
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(
+        200,
+        "application/json; charset=utf-8",
+        json
+    );
+}
+
+
 void handleSetManualLight()
 {
     if (!server.hasArg("state"))

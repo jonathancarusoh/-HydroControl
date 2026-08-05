@@ -63,28 +63,55 @@
                     Sin modo definido
                 </span>
 
-                <label
-                    class="dashboard-manual-light-control"
-                    for="dashboardManualLightSwitch">
+                <div class="dashboard-light-switches">
 
-                    <span class="dashboard-manual-light-copy">
-                        <strong>Control manual</strong>
-                        <small id="dashboardManualLightLabel">Apagada</small>
-                    </span>
+                    <label
+                        class="dashboard-light-switch-control"
+                        for="dashboardAutomaticLightSwitch">
 
-                    <input
-                        type="checkbox"
-                        id="dashboardManualLightSwitch"
-                        aria-describedby="dashboardManualLightHint">
+                        <span class="dashboard-light-switch-copy">
+                            <strong>Control automático</strong>
+                            <small id="dashboardAutomaticLightLabel">
+                                Desactivado
+                            </small>
+                        </span>
 
-                    <span class="dashboard-manual-switch-track" aria-hidden="true">
-                        <span class="dashboard-manual-switch-thumb"></span>
-                    </span>
-                </label>
+                        <input
+                            type="checkbox"
+                            id="dashboardAutomaticLightSwitch"
+                            aria-describedby="dashboardLightControlHint">
+
+                        <span class="dashboard-light-switch-track" aria-hidden="true">
+                            <span class="dashboard-light-switch-thumb"></span>
+                        </span>
+                    </label>
+
+                    <label
+                        class="dashboard-light-switch-control"
+                        for="dashboardManualLightSwitch">
+
+                        <span class="dashboard-light-switch-copy">
+                            <strong>Control manual</strong>
+                            <small id="dashboardManualLightLabel">
+                                Apagado
+                            </small>
+                        </span>
+
+                        <input
+                            type="checkbox"
+                            id="dashboardManualLightSwitch"
+                            aria-describedby="dashboardLightControlHint">
+
+                        <span class="dashboard-light-switch-track" aria-hidden="true">
+                            <span class="dashboard-light-switch-thumb"></span>
+                        </span>
+                    </label>
+
+                </div>
             </div>
 
-            <small class="dashboard-light-hint" id="dashboardManualLightHint">
-                Al usar el interruptor manual se desactiva la programación automática.
+            <small class="dashboard-light-hint" id="dashboardLightControlHint">
+                Los controles son excluyentes: al usar el modo manual se desactiva la programación automática.
             </small>
 
             <div
