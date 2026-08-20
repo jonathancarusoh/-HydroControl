@@ -30,8 +30,12 @@ void handleGetConfig()
     json += "\"intervalMinutes\":" +
         String(config.doseIntervalMinutes) + ",";
 
+    json += "\"maxDailyDoses\":" +
+        String(config.maxDailyDoses) + ",";
+
+    // Alias temporal para interfaces anteriores a la migración de 24 h.
     json += "\"maxDoses\":" +
-        String(config.maxConsecutiveDoses) + ",";
+        String(config.maxDailyDoses) + ",";
 
     json += "\"automaticMode\":";
     json += config.automaticMode
@@ -100,7 +104,10 @@ void handleSaveConfig()
         !server.hasArg("tolerance") ||
         !server.hasArg("doseSeconds") ||
         !server.hasArg("intervalMinutes") ||
-        !server.hasArg("maxDoses") ||
+        (
+            !server.hasArg("maxDailyDoses") &&
+            !server.hasArg("maxDoses")
+        ) ||
         !server.hasArg("automaticMode") ||
         !server.hasArg("manualDoseSeconds") ||
         !server.hasArg("manualMaxDoses")
@@ -128,8 +135,9 @@ void handleSaveConfig()
     int intervalMinutes =
         server.arg("intervalMinutes").toInt();
 
-    int maxDoses =
-        server.arg("maxDoses").toInt();
+    int maxDailyDoses = server.hasArg("maxDailyDoses")
+        ? server.arg("maxDailyDoses").toInt()
+        : server.arg("maxDoses").toInt();
 
     bool automaticMode =
         server.arg("automaticMode") == "true";
@@ -162,8 +170,8 @@ void handleSaveConfig()
         doseSeconds > 30.0f ||
         intervalMinutes < 1 ||
         intervalMinutes > 120 ||
-        maxDoses < 1 ||
-        maxDoses > 10 ||
+        maxDailyDoses < 1 ||
+        maxDailyDoses > 10 ||
         manualDoseSeconds < 0.1f ||
         manualDoseSeconds > 30.0f ||
         manualMaxDoses < 1 ||
@@ -184,7 +192,7 @@ void handleSaveConfig()
     float previousTolerance = config.phTolerance;
     uint32_t previousDoseDuration = config.doseDurationMs;
     uint32_t previousDoseInterval = config.doseIntervalMinutes;
-    uint8_t previousMaxDoses = config.maxConsecutiveDoses;
+    uint8_t previousMaxDailyDoses = config.maxDailyDoses;
     bool previousAutomaticMode = config.automaticMode;
     uint32_t previousManualDoseDuration =
         config.manualDoseDurationMs;
@@ -204,9 +212,9 @@ void handleSaveConfig()
             intervalMinutes
         );
 
-    config.maxConsecutiveDoses =
+    config.maxDailyDoses =
         static_cast<uint8_t>(
-            maxDoses
+            maxDailyDoses
         );
 
     config.automaticMode = automaticMode;
@@ -218,10 +226,6 @@ void handleSaveConfig()
         static_cast<uint8_t>(manualMaxDoses);
 
     saveConfig();
-
-    // Una modificación manual deja de coincidir con el perfil
-    // que estaba aplicado anteriormente.
-    setActiveProfileSlot(-1);
 
     String changes;
 
@@ -262,13 +266,14 @@ void handleSaveConfig()
         changes += " min";
     }
 
-    if (previousMaxDoses != config.maxConsecutiveDoses)
+    if (previousMaxDailyDoses != config.maxDailyDoses)
     {
         if (!changes.isEmpty()) changes += " · ";
-        changes += "Máximo ";
-        changes += String(previousMaxDoses);
+        changes += "Máximo en 24 h ";
+        changes += String(previousMaxDailyDoses);
         changes += " → ";
-        changes += String(config.maxConsecutiveDoses);
+        changes += String(config.maxDailyDoses);
+        changes += " dosis";
     }
 
     if (previousAutomaticMode != config.automaticMode)
@@ -300,6 +305,8 @@ void handleSaveConfig()
 
     if (!changes.isEmpty())
     {
+        clearActiveProfileIfConfigChanged();
+
         logEvent(
             "ph",
             "Configuración de pH actualizada",

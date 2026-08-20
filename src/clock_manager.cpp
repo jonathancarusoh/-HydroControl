@@ -2,6 +2,7 @@
 #include "app_state.h"
 #include "config.h"
 #include "event_logger.h"
+#include "light_output.h"
 #include "profile_manager.h"
 #include "utils.h"
 #include <Preferences.h>
@@ -416,6 +417,10 @@ void appendClockAndLightJson(String& json)
         ? "true"
         : "false";
     json += ",\"effectiveOn\":";
+    json += isLightOutputOn()
+        ? "true"
+        : "false";
+    json += ",\"requestedOn\":";
     json += isLightEffectivelyOn()
         ? "true"
         : "false";
@@ -437,7 +442,21 @@ void appendClockAndLightJson(String& json)
     json += escapeJson(getLightStateLabel());
     json += "\",\"nextChangeLabel\":\"";
     json += escapeJson(getLightNextChangeLabel());
-    json += "\",\"outputAvailable\":false";
+    json += "\",\"outputAvailable\":";
+    json += isLightOutputInitialized()
+        ? "true"
+        : "false";
+    json += ",\"outputOn\":";
+    json += isLightOutputOn()
+        ? "true"
+        : "false";
+    json += ",\"outputPin\":";
+    json += String(getLightRelayPin());
+    json += ",\"outputActiveLevel\":\"";
+    json += isLightRelayActiveHigh()
+        ? "HIGH"
+        : "LOW";
+    json += "\"";
     json += "}";
 }
 
@@ -592,9 +611,10 @@ void handleSaveLightSchedule()
 
     saveConfig();
 
-    // Un cambio manual del horario deja de coincidir con
-    // el perfil que estaba aplicado.
-    setActiveProfileSlot(-1);
+    if (changed)
+    {
+        clearActiveProfileIfConfigChanged();
+    }
 
     if (changed)
     {
@@ -684,7 +704,11 @@ void handleSetAutomaticLight()
     config.lightManualOn = false;
 
     saveConfig();
-    setActiveProfileSlot(-1);
+
+    if (changed)
+    {
+        clearActiveProfileIfConfigChanged();
+    }
 
     if (changed)
     {
@@ -775,7 +799,11 @@ void handleSetManualLight()
     config.lightManualOn = requestedOn;
 
     saveConfig();
-    setActiveProfileSlot(-1);
+
+    if (changed)
+    {
+        clearActiveProfileIfConfigChanged();
+    }
 
     if (changed)
     {
@@ -791,8 +819,8 @@ void handleSetManualLight()
         logEvent(
             "light",
             requestedOn
-                ? "Lámpara encendida manualmente"
-                : "Lámpara apagada manualmente",
+                ? "Control manual de luz encendido"
+                : "Control manual de luz apagado",
             detail
         );
     }

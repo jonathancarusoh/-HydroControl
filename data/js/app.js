@@ -72,6 +72,10 @@ async function loadPage(page) {
                 updatePhPage();
                 break;
 
+            case "ec":
+                updateEcPage();
+                break;
+
             case "profiles":
                 updateProfilesPage();
                 break;

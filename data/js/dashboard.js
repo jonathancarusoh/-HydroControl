@@ -34,6 +34,47 @@ function dashboardFormatNumber(value, decimals, suffix = "") {
     return `${numericValue.toFixed(decimals)}${suffix}`;
 }
 
+function dashboardRenderActiveProfile(profileData) {
+    const badge = document.getElementById("dashboardProfileBadge");
+    const label = document.getElementById("dashboardProfileLabel");
+
+    if (!badge || !label) {
+        return;
+    }
+
+    if (!profileData) {
+        badge.dataset.state = "unknown";
+        badge.querySelector("i")?.classList.remove(
+            "bi-bookmark-check",
+            "bi-bookmarks"
+        );
+        badge.querySelector("i")?.classList.add("bi-exclamation-circle");
+        label.textContent = "Perfil sin información";
+        badge.title = "No se pudo consultar el perfil activo";
+        return;
+    }
+
+    const active = Boolean(profileData.active);
+    const profileName = String(profileData.name || "").trim();
+    const icon = badge.querySelector("i");
+
+    badge.dataset.state = active ? "active" : "none";
+    icon?.classList.remove(
+        "bi-bookmark-check",
+        "bi-bookmarks",
+        "bi-exclamation-circle"
+    );
+    icon?.classList.add(active ? "bi-bookmark-check" : "bi-bookmarks");
+
+    label.textContent = active && profileName
+        ? `Perfil: ${profileName}`
+        : "Sin perfil activo";
+
+    badge.title = active && profileName
+        ? `Perfil activo: ${profileName}. Abrir perfiles.`
+        : "La configuración actual no pertenece a un perfil. Abrir perfiles.";
+}
+
 async function dashboardReadJson(response) {
     const text = await response.text();
 
@@ -501,7 +542,9 @@ function dashboardRenderAutomaticConfig(configData) {
     const tolerance = Number(configData.tolerance);
     const doseSeconds = Number(configData.doseSeconds);
     const intervalMinutes = Number(configData.intervalMinutes);
-    const maxDoses = Number(configData.maxDoses);
+    const maxDailyDoses = Number(
+        configData.maxDailyDoses ?? configData.maxDoses
+    );
 
     modeLabel.textContent = automaticMode
         ? "Regulación automática"
@@ -541,8 +584,8 @@ function dashboardRenderAutomaticConfig(configData) {
             : "--";
 
     document.getElementById("dashboardMaxDoses").textContent =
-        Number.isFinite(maxDoses)
-            ? `${maxDoses} dosis`
+        Number.isFinite(maxDailyDoses)
+            ? `${maxDailyDoses} dosis / 24 h`
             : "--";
 }
 
@@ -737,6 +780,7 @@ async function updateDashboard() {
 
         dashboardRenderClock(statusData.clock);
         dashboardRenderLight(statusData.light);
+        dashboardRenderActiveProfile(statusData.activeProfile);
         dashboardRenderPhStatus(currentPh, configData);
         dashboardRenderAutomaticConfig(configData);
         dashboardRenderSecondaryDetails(statusData, configData);
@@ -752,6 +796,7 @@ async function updateDashboard() {
 
         dashboardRenderClock(null);
         dashboardRenderLight(null);
+        dashboardRenderActiveProfile(null);
         dashboardRenderPhStatus(NaN, null);
         dashboardRenderAutomaticConfig(null);
         dashboardRenderSecondaryDetails(null, null);

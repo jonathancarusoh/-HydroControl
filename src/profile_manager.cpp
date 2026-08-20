@@ -3,8 +3,10 @@
 #include "clock_manager.h"
 #include "config.h"
 #include "event_logger.h"
+#include "manual_ph_dosing.h"
 #include "utils.h"
 #include <Preferences.h>
+#include <math.h>
 
 namespace { Preferences profilePreferences; }
 
@@ -77,13 +79,16 @@ bool loadProfile(
     String toleranceKey = profileKey("pt", slot);
     String durationKey = profileKey("dm", slot);
     String intervalKey = profileKey("di", slot);
-    String maxDosesKey = profileKey("md", slot);
+    String maxDailyDosesKey = profileKey("m24", slot);
+    String legacyMaxDosesKey = profileKey("md", slot);
     String autoModeKey = profileKey("am", slot);
     String targetEcKey = profileKey("ec", slot);
     String lightOnHourKey = profileKey("loh", slot);
     String lightOnMinuteKey = profileKey("lom", slot);
     String lightOffHourKey = profileKey("lfh", slot);
     String lightOffMinuteKey = profileKey("lfm", slot);
+    String lightScheduleEnabledKey = profileKey("lse", slot);
+    String lightManualOnKey = profileKey("lmo", slot);
 
     profile.name = profilePreferences.getString(
         nameKey.c_str(),
@@ -110,10 +115,17 @@ bool loadProfile(
         4
     );
 
-    profile.maxConsecutiveDoses = profilePreferences.getUChar(
-        maxDosesKey.c_str(),
-        3
-    );
+    profile.maxDailyDoses = profilePreferences.isKey(
+        maxDailyDosesKey.c_str()
+    )
+        ? profilePreferences.getUChar(
+            maxDailyDosesKey.c_str(),
+            3
+        )
+        : profilePreferences.getUChar(
+            legacyMaxDosesKey.c_str(),
+            3
+        );
 
     profile.automaticMode = profilePreferences.getBool(
         autoModeKey.c_str(),
@@ -145,6 +157,27 @@ bool loadProfile(
         0
     );
 
+    // Migración de perfiles antiguos: si todavía no existían
+    // las claves de modo de luz, se interpreta el horario como automático.
+    profile.lightScheduleEnabled = profilePreferences.isKey(
+        lightScheduleEnabledKey.c_str()
+    )
+        ? profilePreferences.getBool(
+            lightScheduleEnabledKey.c_str(),
+            false
+        )
+        : true;
+
+    profile.lightManualOn = profilePreferences.getBool(
+        lightManualOnKey.c_str(),
+        false
+    );
+
+    if (profile.lightScheduleEnabled)
+    {
+        profile.lightManualOn = false;
+    }
+
     profilePreferences.end();
 
     return true;
@@ -163,13 +196,15 @@ void saveProfile(
     String toleranceKey = profileKey("pt", slot);
     String durationKey = profileKey("dm", slot);
     String intervalKey = profileKey("di", slot);
-    String maxDosesKey = profileKey("md", slot);
+    String maxDailyDosesKey = profileKey("m24", slot);
     String autoModeKey = profileKey("am", slot);
     String targetEcKey = profileKey("ec", slot);
     String lightOnHourKey = profileKey("loh", slot);
     String lightOnMinuteKey = profileKey("lom", slot);
     String lightOffHourKey = profileKey("lfh", slot);
     String lightOffMinuteKey = profileKey("lfm", slot);
+    String lightScheduleEnabledKey = profileKey("lse", slot);
+    String lightManualOnKey = profileKey("lmo", slot);
 
     profilePreferences.putBool(
         usedKey.c_str(),
@@ -202,8 +237,8 @@ void saveProfile(
     );
 
     profilePreferences.putUChar(
-        maxDosesKey.c_str(),
-        profile.maxConsecutiveDoses
+        maxDailyDosesKey.c_str(),
+        profile.maxDailyDoses
     );
 
     profilePreferences.putBool(
@@ -236,6 +271,16 @@ void saveProfile(
         profile.lightOffMinute
     );
 
+    profilePreferences.putBool(
+        lightScheduleEnabledKey.c_str(),
+        profile.lightScheduleEnabled
+    );
+
+    profilePreferences.putBool(
+        lightManualOnKey.c_str(),
+        profile.lightManualOn
+    );
+
     profilePreferences.end();
 }
 
@@ -245,8 +290,8 @@ void deleteProfile(uint8_t slot)
 
     const char* prefixes[] = {
         "u", "n", "ph", "pt", "dm", "di",
-        "md", "am", "ec", "loh", "lom",
-        "lfh", "lfm"
+        "md", "m24", "am", "mdu", "mmx", "ec", "loh", "lom",
+        "lfh", "lfm", "lse", "lmo"
     };
 
     for (const char* prefix : prefixes)
@@ -290,7 +335,7 @@ void applyProfileToConfig(
     config.phTolerance = profile.phTolerance;
     config.doseDurationMs = profile.doseDurationMs;
     config.doseIntervalMinutes = profile.doseIntervalMinutes;
-    config.maxConsecutiveDoses = profile.maxConsecutiveDoses;
+    config.maxDailyDoses = profile.maxDailyDoses;
     config.automaticMode = profile.automaticMode;
 
     config.targetEc = profile.targetEc;
@@ -298,8 +343,55 @@ void applyProfileToConfig(
     config.lightOnMinute = profile.lightOnMinute;
     config.lightOffHour = profile.lightOffHour;
     config.lightOffMinute = profile.lightOffMinute;
+    config.lightScheduleEnabled = profile.lightScheduleEnabled;
+    config.lightManualOn = profile.lightScheduleEnabled
+        ? false
+        : profile.lightManualOn;
 
     saveConfig();
+}
+
+bool profileMatchesConfig(const CultivationProfile& profile)
+{
+    const float epsilon = 0.001f;
+
+    return
+        fabsf(profile.targetPh - config.targetPh) < epsilon &&
+        fabsf(profile.phTolerance - config.phTolerance) < epsilon &&
+        profile.doseDurationMs == config.doseDurationMs &&
+        profile.doseIntervalMinutes == config.doseIntervalMinutes &&
+        profile.maxDailyDoses == config.maxDailyDoses &&
+        profile.automaticMode == config.automaticMode &&
+        fabsf(profile.targetEc - config.targetEc) < epsilon &&
+        profile.lightOnHour == config.lightOnHour &&
+        profile.lightOnMinute == config.lightOnMinute &&
+        profile.lightOffHour == config.lightOffHour &&
+        profile.lightOffMinute == config.lightOffMinute &&
+        profile.lightScheduleEnabled == config.lightScheduleEnabled &&
+        profile.lightManualOn == config.lightManualOn;
+}
+
+void clearActiveProfileIfConfigChanged()
+{
+    int8_t activeSlot = getActiveProfileSlot();
+
+    if (activeSlot < 0)
+    {
+        return;
+    }
+
+    CultivationProfile activeProfile;
+
+    if (
+        !loadProfile(
+            static_cast<uint8_t>(activeSlot),
+            activeProfile
+        ) ||
+        !profileMatchesConfig(activeProfile)
+    )
+    {
+        setActiveProfileSlot(-1);
+    }
 }
 
 void appendProfileJson(
@@ -322,8 +414,10 @@ void appendProfileJson(
         String(profile.doseDurationMs / 1000.0f, 2);
     json += ",\"intervalMinutes\":" +
         String(profile.doseIntervalMinutes);
+    json += ",\"maxDailyDoses\":" +
+        String(profile.maxDailyDoses);
     json += ",\"maxDoses\":" +
-        String(profile.maxConsecutiveDoses);
+        String(profile.maxDailyDoses);
     json += ",\"automaticMode\":";
     json += profile.automaticMode ? "true" : "false";
     json += ",\"targetEc\":" + String(profile.targetEc, 2);
@@ -339,6 +433,10 @@ void appendProfileJson(
         profile.lightOffMinute
     );
     json += "\"";
+    json += ",\"lightScheduleEnabled\":";
+    json += profile.lightScheduleEnabled ? "true" : "false";
+    json += ",\"lightManualOn\":";
+    json += profile.lightManualOn ? "true" : "false";
     json += "}";
 }
 
@@ -412,11 +510,11 @@ bool readProfileFromRequest(
         "tolerance",
         "doseSeconds",
         "intervalMinutes",
-        "maxDoses",
         "automaticMode",
         "targetEc",
         "lightOn",
-        "lightOff"
+        "lightOff",
+        "lightMode"
     };
 
     for (const char* argument : requiredArguments)
@@ -428,6 +526,17 @@ bool readProfileFromRequest(
 
             return false;
         }
+    }
+
+    if (
+        !server.hasArg("maxDailyDoses") &&
+        !server.hasArg("maxDoses")
+    )
+    {
+        errorMessage =
+            "Falta el máximo automático de 24 horas.";
+
+        return false;
     }
 
     profile.name = server.arg("name");
@@ -456,8 +565,9 @@ bool readProfileFromRequest(
     int intervalMinutes =
         server.arg("intervalMinutes").toInt();
 
-    int maxDoses =
-        server.arg("maxDoses").toInt();
+    int maxDailyDoses = server.hasArg("maxDailyDoses")
+        ? server.arg("maxDailyDoses").toInt()
+        : server.arg("maxDoses").toInt();
 
     profile.automaticMode =
         server.arg("automaticMode") == "true";
@@ -467,6 +577,23 @@ bool readProfileFromRequest(
 
     String lightOn = server.arg("lightOn");
     String lightOff = server.arg("lightOff");
+    String lightMode = server.arg("lightMode");
+
+    if (
+        lightMode != "automatic" &&
+        lightMode != "manual-on" &&
+        lightMode != "manual-off"
+    )
+    {
+        errorMessage = "El modo de iluminación no es válido.";
+        return false;
+    }
+
+    profile.lightScheduleEnabled =
+        lightMode == "automatic";
+
+    profile.lightManualOn =
+        lightMode == "manual-on";
 
     if (
         profile.targetPh < 4.0f ||
@@ -477,8 +604,8 @@ bool readProfileFromRequest(
         doseSeconds > 30.0f ||
         intervalMinutes < 1 ||
         intervalMinutes > 120 ||
-        maxDoses < 1 ||
-        maxDoses > 10 ||
+        maxDailyDoses < 1 ||
+        maxDailyDoses > 10 ||
         profile.targetEc < 0.10f ||
         profile.targetEc > 5.00f
     )
@@ -514,12 +641,45 @@ bool readProfileFromRequest(
     profile.doseIntervalMinutes =
         static_cast<uint32_t>(intervalMinutes);
 
-    profile.maxConsecutiveDoses =
-        static_cast<uint8_t>(maxDoses);
+    profile.maxDailyDoses =
+        static_cast<uint8_t>(maxDailyDoses);
 
     profile.used = true;
 
     return true;
+}
+
+String buildProfileEventDetail(const CultivationProfile& profile)
+{
+    String detail = "pH ";
+    detail += String(profile.targetPh, 2);
+    detail += " · EC ";
+    detail += String(profile.targetEc, 2);
+    detail += " mS/cm · Máx. automático ";
+    detail += String(profile.maxDailyDoses);
+    detail += " dosis/24 h · Luz ";
+
+    if (profile.lightScheduleEnabled)
+    {
+        detail += formatTime(
+            profile.lightOnHour,
+            profile.lightOnMinute
+        );
+        detail += "–";
+        detail += formatTime(
+            profile.lightOffHour,
+            profile.lightOffMinute
+        );
+        detail += " automática";
+    }
+    else
+    {
+        detail += profile.lightManualOn
+            ? "manual encendida"
+            : "manual apagada";
+    }
+
+    return detail;
 }
 
 void handleSaveProfile()
@@ -605,6 +765,19 @@ void handleSaveProfile()
 
             return;
         }
+
+        if (
+            getActiveProfileSlot() == slot &&
+            isManualPhDosingActive()
+        )
+        {
+            server.send(
+                409,
+                "application/json; charset=utf-8",
+                "{\"success\":false,\"message\":\"No se puede modificar el perfil activo mientras hay una dosificación manual en curso.\"}"
+            );
+            return;
+        }
     }
 
     saveProfile(slot, profile);
@@ -616,20 +789,7 @@ void handleSaveProfile()
         applyProfileToConfig(profile);
     }
 
-    String profileEventDetail = "pH ";
-    profileEventDetail += String(profile.targetPh, 2);
-    profileEventDetail += " · EC ";
-    profileEventDetail += String(profile.targetEc, 2);
-    profileEventDetail += " mS/cm · Luz ";
-    profileEventDetail += formatTime(
-        profile.lightOnHour,
-        profile.lightOnMinute
-    );
-    profileEventDetail += "–";
-    profileEventDetail += formatTime(
-        profile.lightOffHour,
-        profile.lightOffMinute
-    );
+    String profileEventDetail = buildProfileEventDetail(profile);
 
     logEvent(
         "profile",
@@ -657,6 +817,16 @@ void handleSaveProfile()
 
 void handleApplyProfile()
 {
+    if (isManualPhDosingActive())
+    {
+        server.send(
+            409,
+            "application/json; charset=utf-8",
+            "{\"success\":false,\"message\":\"No se puede aplicar un perfil mientras hay una dosificación manual en curso.\"}"
+        );
+        return;
+    }
+
     if (!server.hasArg("id"))
     {
         server.send(
@@ -703,20 +873,7 @@ void handleApplyProfile()
     applyProfileToConfig(profile);
     setActiveProfileSlot(static_cast<int8_t>(slot));
 
-    String appliedDetail = "pH ";
-    appliedDetail += String(profile.targetPh, 2);
-    appliedDetail += " · EC ";
-    appliedDetail += String(profile.targetEc, 2);
-    appliedDetail += " mS/cm · Luz ";
-    appliedDetail += formatTime(
-        profile.lightOnHour,
-        profile.lightOnMinute
-    );
-    appliedDetail += "–";
-    appliedDetail += formatTime(
-        profile.lightOffHour,
-        profile.lightOffMinute
-    );
+    String appliedDetail = buildProfileEventDetail(profile);
 
     logEvent(
         "profile",

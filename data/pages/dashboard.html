@@ -9,9 +9,23 @@
             </p>
         </div>
 
-        <div class="dashboard-live-badge">
-            <span class="dashboard-live-dot"></span>
-            Datos en vivo
+        <div class="dashboard-heading-status">
+            <button
+                type="button"
+                class="dashboard-profile-badge"
+                id="dashboardProfileBadge"
+                data-state="loading"
+                data-dashboard-page="profiles"
+                title="Abrir perfiles"
+                aria-label="Abrir perfiles de cultivo">
+                <i class="bi bi-bookmarks"></i>
+                <span id="dashboardProfileLabel">Consultando perfil...</span>
+            </button>
+
+            <div class="dashboard-live-badge">
+                <span class="dashboard-live-dot"></span>
+                Datos en vivo
+            </div>
         </div>
     </div>
 
@@ -204,7 +218,7 @@
                     </div>
 
                     <div class="dashboard-detail-item">
-                        <span>Límite consecutivo</span>
+                        <span>Máximo en 24 h</span>
                         <strong id="dashboardMaxDoses">--</strong>
                     </div>
 

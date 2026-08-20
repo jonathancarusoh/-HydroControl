@@ -10,7 +10,7 @@
             </h2>
 
             <p class="text-secondary mb-0">
-                Guardá configuraciones completas y aplicalas cuando cambie la etapa del cultivo.
+                Guardá la regulación automática, el objetivo de EC y la iluminación de cada etapa.
             </p>
         </div>
 
@@ -193,14 +193,14 @@
                                 </div>
 
                                 <div class="col-12 col-sm-6">
-                                    <label for="profileMaxDoses" class="form-label">
-                                        Máximo de dosis
+                                    <label for="profileMaxDailyDoses" class="form-label">
+                                        Máximo cada 24 h
                                     </label>
 
                                     <input
                                         type="number"
                                         class="form-control"
-                                        id="profileMaxDoses"
+                                        id="profileMaxDailyDoses"
                                         min="1"
                                         max="10"
                                         step="1"
@@ -255,6 +255,22 @@
                             <div class="profiles-form-block-title">
                                 <span><i class="bi bi-lightbulb"></i></span>
                                 Horario de luz
+                            </div>
+
+
+                            <div class="mb-3">
+                                <label for="profileLightMode" class="form-label">
+                                    Modo de iluminación
+                                </label>
+
+                                <select
+                                    class="form-select"
+                                    id="profileLightMode"
+                                    required>
+                                    <option value="automatic">Programación automática</option>
+                                    <option value="manual-on">Manual encendida</option>
+                                    <option value="manual-off">Manual apagada</option>
+                                </select>
                             </div>
 
                             <div class="row g-3">

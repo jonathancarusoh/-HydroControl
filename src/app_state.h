@@ -10,7 +10,8 @@ struct HydroConfig
     float phTolerance = 0.10f;
     uint32_t doseDurationMs = 500;
     uint32_t doseIntervalMinutes = 4;
-    uint8_t maxConsecutiveDoses = 3;
+    // Cuota de seguridad para dosis automáticas dentro de 24 horas.
+    uint8_t maxDailyDoses = 3;
     bool automaticMode = true;
 
     // Seguridad y duración de la dosificación manual.

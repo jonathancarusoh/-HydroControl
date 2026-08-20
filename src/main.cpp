@@ -7,6 +7,8 @@
 #include "config.h"
 #include "event_logger.h"
 #include "manual_ph_dosing.h"
+#include "light_output.h"
+#include "profile_manager.h"
 #include "utils.h"
 #include "web_server.h"
 #include "wifi_manager.h"
@@ -34,7 +36,7 @@ void printLoadedConfiguration()
         "Intervalo: %lu minutos\n",
         static_cast<unsigned long>(config.doseIntervalMinutes)
     );
-    Serial.printf("Máximo de dosis: %u\n", config.maxConsecutiveDoses);
+    Serial.printf("Máximo automático por 24 h: %u\n", config.maxDailyDoses);
 }
 
 void printAccessInformation()
@@ -71,6 +73,7 @@ void setup()
     printStartupBanner();
 
     loadConfig();
+    clearActiveProfileIfConfigChanged();
     printLoadedConfiguration();
 
     if (!LittleFS.begin())
@@ -87,6 +90,8 @@ void setup()
     littleFsReady = true;
 
     initializeClockRuntime();
+    initializeLightOutput();
+    processLightOutput();
 
     String startupDetail = "Firmware ";
     startupDetail += FIRMWARE_VERSION;
@@ -119,6 +124,7 @@ void loop()
 
     server.handleClient();
     processManualPhDosing();
+    processLightOutput();
     monitorRouterWifiState();
 
     if (

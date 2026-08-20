@@ -78,6 +78,48 @@ function calculatePhotoperiod(lightOn, lightOff) {
     };
 }
 
+
+function getProfileLightMode(profile) {
+    if (profile?.lightScheduleEnabled) {
+        return "automatic";
+    }
+
+    return profile?.lightManualOn
+        ? "manual-on"
+        : "manual-off";
+}
+
+function getProfileLightModeLabel(profile) {
+    const mode = getProfileLightMode(profile);
+
+    if (mode === "automatic") {
+        return `Automática · ${profile.lightOn}–${profile.lightOff}`;
+    }
+
+    return mode === "manual-on"
+        ? "Manual encendida"
+        : "Manual apagada";
+}
+
+function updateProfileLightModeUi() {
+    const mode = document.getElementById("profileLightMode")?.value;
+    const automatic = mode === "automatic";
+
+    document.getElementById("profileLightOn")?.toggleAttribute("disabled", !automatic);
+    document.getElementById("profileLightOff")?.toggleAttribute("disabled", !automatic);
+
+    const output = document.getElementById("profilePhotoperiod");
+
+    if (!automatic && output) {
+        output.textContent = mode === "manual-on"
+            ? "Iluminación manual: encendida"
+            : "Iluminación manual: apagada";
+        return;
+    }
+
+    updateProfilePhotoperiod();
+}
+
 function updateProfilePhotoperiod() {
     const lightOn = document.getElementById("profileLightOn")?.value;
     const lightOff = document.getElementById("profileLightOff")?.value;
@@ -104,11 +146,13 @@ function getCurrentProfileDefaults() {
         tolerance: Number(config.tolerance ?? 0.1),
         doseSeconds: Number(config.doseSeconds ?? 0.5),
         intervalMinutes: Number(config.intervalMinutes ?? 4),
-        maxDoses: Number(config.maxDoses ?? 3),
+        maxDailyDoses: Number(config.maxDailyDoses ?? config.maxDoses ?? 3),
         automaticMode: Boolean(config.automaticMode ?? true),
         targetEc: Number(config.targetEc ?? 1.4),
         lightOn: String(config.lightOn ?? "06:00"),
-        lightOff: String(config.lightOff ?? "18:00")
+        lightOff: String(config.lightOff ?? "18:00"),
+        lightScheduleEnabled: Boolean(config.lightScheduleEnabled ?? false),
+        lightManualOn: Boolean(config.lightManualOn ?? false)
     };
 }
 
@@ -133,8 +177,8 @@ function fillProfileForm(profile, editing = false) {
     document.getElementById("profileDoseInterval").value =
         Number(profileData.intervalMinutes).toString();
 
-    document.getElementById("profileMaxDoses").value =
-        Number(profileData.maxDoses).toString();
+    document.getElementById("profileMaxDailyDoses").value =
+        Number(profileData.maxDailyDoses ?? profileData.maxDoses ?? 3).toString();
 
     document.getElementById("profileAutomaticMode").checked =
         Boolean(profileData.automaticMode);
@@ -147,6 +191,9 @@ function fillProfileForm(profile, editing = false) {
 
     document.getElementById("profileLightOff").value =
         profileData.lightOff;
+
+    document.getElementById("profileLightMode").value =
+        getProfileLightMode(profileData);
 
     const mode = document.getElementById("profileFormMode");
     const title = document.getElementById("profileFormTitle");
@@ -171,7 +218,7 @@ function fillProfileForm(profile, editing = false) {
 
     cancelButton?.classList.toggle("d-none", !editing);
     hideProfilesMessage("profileFormMessage");
-    updateProfilePhotoperiod();
+    updateProfileLightModeUi();
 }
 
 function scrollToProfileEditor() {
@@ -212,7 +259,7 @@ function renderActiveProfile() {
     descriptionElement.textContent =
         `pH ${formatProfileNumber(activeProfile.targetPh)} · ` +
         `EC ${formatProfileNumber(activeProfile.targetEc)} mS/cm · ` +
-        `Luz ${activeProfile.lightOn}–${activeProfile.lightOff}`;
+        `Luz ${getProfileLightModeLabel(activeProfile)}`;
 }
 
 function createProfileMetric(icon, label, value) {
@@ -287,8 +334,8 @@ function createProfileCard(profile) {
     metrics.appendChild(
         createProfileMetric(
             "bi-lightbulb",
-            "Horario de luz",
-            `${profile.lightOn}–${profile.lightOff}`
+            "Iluminación",
+            getProfileLightModeLabel(profile)
         )
     );
 
@@ -297,6 +344,14 @@ function createProfileCard(profile) {
             "bi-stopwatch",
             "Dosificación",
             `${Number(profile.doseSeconds)} s · cada ${profile.intervalMinutes} min`
+        )
+    );
+
+    metrics.appendChild(
+        createProfileMetric(
+            "bi-shield-check",
+            "Máximo automático",
+            `${profile.maxDailyDoses ?? profile.maxDoses ?? 3} dosis / 24 h`
         )
     );
 
@@ -408,6 +463,10 @@ async function loadProfilesData() {
 }
 
 function collectProfileFormData(nameOverride = null, idOverride = null) {
+    const maxDailyDoses = document.getElementById(
+        "profileMaxDailyDoses"
+    ).value;
+
     return new URLSearchParams({
         id: idOverride ?? document.getElementById("profileId").value,
         name: nameOverride ?? document.getElementById("profileName").value.trim(),
@@ -415,13 +474,15 @@ function collectProfileFormData(nameOverride = null, idOverride = null) {
         tolerance: document.getElementById("profilePhTolerance").value,
         doseSeconds: document.getElementById("profileDoseSeconds").value,
         intervalMinutes: document.getElementById("profileDoseInterval").value,
-        maxDoses: document.getElementById("profileMaxDoses").value,
+        maxDailyDoses,
+        maxDoses: maxDailyDoses,
         automaticMode: document.getElementById("profileAutomaticMode").checked
             ? "true"
             : "false",
         targetEc: document.getElementById("profileTargetEc").value,
         lightOn: document.getElementById("profileLightOn").value,
-        lightOff: document.getElementById("profileLightOff").value
+        lightOff: document.getElementById("profileLightOff").value,
+        lightMode: document.getElementById("profileLightMode").value
     });
 }
 
@@ -500,7 +561,7 @@ async function saveProfileForm(event) {
 async function applyProfile(profile) {
     const confirmed = window.confirm(
         `¿Aplicar el perfil "${profile.name}"?\n\n` +
-        "Se reemplazará la configuración activa de pH, EC y horario de luz."
+        "Se reemplazará la regulación automática de pH, el objetivo de EC y la iluminación."
     );
 
     if (!confirmed) {
@@ -543,6 +604,7 @@ async function duplicateProfile(profile) {
     }
 
     const duplicatedName = `${profile.name} copia`.slice(0, 32);
+    const maxDailyDoses = profile.maxDailyDoses ?? profile.maxDoses ?? 3;
     const data = new URLSearchParams({
         id: "-1",
         name: duplicatedName,
@@ -550,11 +612,13 @@ async function duplicateProfile(profile) {
         tolerance: profile.tolerance,
         doseSeconds: profile.doseSeconds,
         intervalMinutes: profile.intervalMinutes,
-        maxDoses: profile.maxDoses,
+        maxDailyDoses,
+        maxDoses: maxDailyDoses,
         automaticMode: profile.automaticMode ? "true" : "false",
         targetEc: profile.targetEc,
         lightOn: profile.lightOn,
-        lightOff: profile.lightOff
+        lightOff: profile.lightOff,
+        lightMode: getProfileLightMode(profile)
     });
 
     try {
@@ -649,6 +713,10 @@ async function updateProfilesPage() {
         document
             .getElementById("profileLightOff")
             ?.addEventListener("input", updateProfilePhotoperiod);
+
+        document
+            .getElementById("profileLightMode")
+            ?.addEventListener("change", updateProfileLightModeUi);
 
     } catch (error) {
         console.error("Error iniciando la página de perfiles:", error);

@@ -24,8 +24,9 @@ void loadConfig()
     config.doseIntervalMinutes =
         hydroPreferences.getUInt("intervalMin", 4);
 
-    config.maxConsecutiveDoses =
-        hydroPreferences.getUChar("maxDoses", 3);
+    config.maxDailyDoses = hydroPreferences.isKey("maxDaily")
+        ? hydroPreferences.getUChar("maxDaily", 3)
+        : hydroPreferences.getUChar("maxDoses", 3);
 
     config.automaticMode =
         hydroPreferences.getBool("autoMode", true);
@@ -85,8 +86,14 @@ void saveConfig()
     );
 
     hydroPreferences.putUChar(
+        "maxDaily",
+        config.maxDailyDoses
+    );
+
+    // Compatibilidad con firmware anterior a la migración del nombre.
+    hydroPreferences.putUChar(
         "maxDoses",
-        config.maxConsecutiveDoses
+        config.maxDailyDoses
     );
 
     hydroPreferences.putBool(

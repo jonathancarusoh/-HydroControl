@@ -181,7 +181,7 @@ function updateAutomaticModeAppearance() {
 function updateAutomaticSummaries() {
     const duration = getPhNumber("doseDuration", 1);
     const interval = getPhNumber("doseInterval", 4);
-    const maxDoses = getPhNumber("maxDoses", 3);
+    const maxDailyDoses = getPhNumber("maxDailyDoses", 3);
 
     const durationElement = getPhElement("autoDoseSummary");
     const intervalElement = getPhElement("autoIntervalSummary");
@@ -199,7 +199,7 @@ function updateAutomaticSummaries() {
 
     if (maxElement) {
         maxElement.textContent =
-            `${maxDoses} dosis`;
+            `${maxDailyDoses} dosis / 24 h`;
     }
 }
 
@@ -258,12 +258,15 @@ function updateManualSequenceEstimate() {
 }
 
 function collectPhConfig() {
+    const maxDailyDoses = getPhNumber("maxDailyDoses", 3).toString();
+
     return new URLSearchParams({
         targetPh: getPhNumber("targetPh", 5.8).toString(),
         tolerance: getPhNumber("phTolerance", 0.1).toString(),
         doseSeconds: getPhNumber("doseDuration", 1).toString(),
         intervalMinutes: getPhNumber("doseInterval", 4).toString(),
-        maxDoses: getPhNumber("maxDoses", 3).toString(),
+        maxDailyDoses,
+        maxDoses: maxDailyDoses,
         automaticMode: getPhElement("autoMode")?.checked
             ? "true"
             : "false",
@@ -293,8 +296,8 @@ async function loadPhConfig() {
     getPhElement("doseInterval").value =
         Number(data.intervalMinutes);
 
-    getPhElement("maxDoses").value =
-        Number(data.maxDoses);
+    getPhElement("maxDailyDoses").value =
+        Number(data.maxDailyDoses ?? data.maxDoses);
 
     getPhElement("autoMode").checked =
         Boolean(data.automaticMode);
@@ -792,7 +795,7 @@ function bindPhPageEvents() {
     [
         "doseDuration",
         "doseInterval",
-        "maxDoses"
+        "maxDailyDoses"
     ].forEach(id => {
         getPhElement(id)?.addEventListener(
             "input",

@@ -178,6 +178,11 @@ bool connectToSavedWifi()
             " · IP " + WiFi.localIP().toString()
     );
 
+    // El monitor parte del estado real del arranque para no
+    // registrar un falso evento "WiFi recuperado".
+    lastObservedWifiStatus = WiFi.status();
+    lastWifiMonitorAt = millis();
+
     return true;
 }
 
