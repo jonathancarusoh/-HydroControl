@@ -48,7 +48,7 @@ extern bool littleFsReady;
 extern bool clockConfigured;
 extern bool clockRestoredAfterSoftwareRestart;
 
-// Lecturas provisionales hasta conectar los sensores reales.
+// pH real leído desde el PH-4502C en GPIO34. El resto continúa provisional.
 extern float currentPh;
 extern float currentEc;
 extern float waterTemperature;

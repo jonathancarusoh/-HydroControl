@@ -761,7 +761,10 @@ async function updateDashboard() {
             dashboardGetConfig()
         ]);
 
-        const currentPh = Number(statusData.ph);
+        const currentPh =
+            statusData.ph === null || statusData.ph === undefined
+                ? NaN
+                : Number(statusData.ph);
         const currentEc = Number(statusData.ec);
         const waterTemperature = Number(statusData.waterTemp);
         const currentHumidity = Number(statusData.humidity);

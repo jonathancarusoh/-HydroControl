@@ -1,0 +1,23 @@
+HydroControl 0.5.0 — PH-4502C en GPIO34
+
+Cambios principales:
+- Lectura real del PH-4502C por GPIO34 (ADC1).
+- Filtrado de 15 muestras con descarte de extremos.
+- Lectura de ADC, mV y diagnóstico de saturación.
+- Calibración persistente de dos puntos: pH 7.00 y pH 4.00.
+- Nuevas rutas:
+  GET  /api/ph/sensor
+  POST /api/ph/calibrate
+  POST /api/ph/calibration/reset
+- El valor de pH simulado fue eliminado.
+- Dashboard y página pH manejan correctamente el estado "sin calibrar".
+- Se conserva la corrección de iluminación:
+  GPIO25 para el relé, GPIO23 no se usa para salidas críticas.
+- La salida de luz se reafirma cada 100 ms.
+- El modo manual de luz vuelve a OFF después de reiniciar.
+
+Conexión PH-4502C usada por este firmware:
+V+  -> 5 V
+GND -> GND
+PO  -> GPIO34
+DO  -> sin conectar

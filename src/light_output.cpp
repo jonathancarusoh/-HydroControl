@@ -7,6 +7,8 @@ namespace
 {
     bool lightOutputInitialized = false;
     bool lightOutputOn = false;
+    unsigned long lastOutputRefreshAt = 0;
+    constexpr unsigned long LIGHT_OUTPUT_REFRESH_MS = 100;
 
     uint8_t relayLevelForState(bool on)
     {
@@ -72,14 +74,30 @@ void processLightOutput()
         return;
     }
 
-    bool requestedOn = isLightEffectivelyOn();
+    const unsigned long now = millis();
 
-    if (requestedOn == lightOutputOn)
+    if (
+        static_cast<uint32_t>(now - lastOutputRefreshAt) <
+        LIGHT_OUTPUT_REFRESH_MS
+    )
     {
         return;
     }
 
+    lastOutputRefreshAt = now;
+
+    const bool requestedOn = isLightEffectivelyOn();
+    const bool stateChanged = requestedOn != lightOutputOn;
+
+    // Reafirmamos pinMode y nivel periódicamente. Esto deja la salida
+    // robusta frente a una alteración accidental del GPIO.
+    pinMode(LIGHT_RELAY_PIN, OUTPUT);
     writeLightOutput(requestedOn);
+
+    if (!stateChanged)
+    {
+        return;
+    }
 
     logEvent(
         "light",

@@ -9,6 +9,7 @@
 #include "manual_ph_dosing.h"
 #include "light_output.h"
 #include "profile_manager.h"
+#include "ph_sensor.h"
 #include "utils.h"
 #include "web_server.h"
 #include "wifi_manager.h"
@@ -68,7 +69,10 @@ void printAccessInformation()
 void setup()
 {
     Serial.begin(115200);
-    delay(500);
+
+    // Primero aseguramos la salida de iluminación en OFF.
+    initializeLightOutput();
+    delay(100);
 
     printStartupBanner();
 
@@ -90,7 +94,7 @@ void setup()
     littleFsReady = true;
 
     initializeClockRuntime();
-    initializeLightOutput();
+    initializePhSensor();
     processLightOutput();
 
     String startupDetail = "Firmware ";
@@ -124,6 +128,7 @@ void loop()
 
     server.handleClient();
     processManualPhDosing();
+    processPhSensor();
     processLightOutput();
     monitorRouterWifiState();
 

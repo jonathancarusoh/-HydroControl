@@ -1,6 +1,6 @@
 const hydro = {
     online: false,
-    ph: 0,
+    ph: null,
     ec: 0,
     waterTemp: 0,
     humidity: 0,

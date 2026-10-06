@@ -9,10 +9,11 @@ El firmware está dividido por responsabilidad para evitar que `main.cpp` concen
 - `wifi_manager.*`: modo local, credenciales, conexión al router, mDNS y seguimiento del estado real de la conexión.
 - `wifi_portal.*`: interfaz HTML del portal inicial de configuración WiFi.
 - `clock_manager.*`: reloj manual, programación de luz, control automático/manual y API del reloj.
-- `light_output.*`: salida física de iluminación, GPIO 23, estado seguro de arranque y accionamiento del relé.
+- `light_output.*`: salida física de iluminación, GPIO 25, estado seguro de arranque y accionamiento reforzado del relé.
 - `event_logger.*`: registro persistente y consulta de eventos.
 - `profile_manager.*`: creación, edición, comparación, aplicación y eliminación de perfiles de cultivo.
 - `ph.*`: configuración y API general de pH.
+- `ph_sensor.*`: lectura real del PH-4502C en GPIO34, filtrado ADC, diagnóstico de saturación y calibración persistente de dos puntos (pH 7 / pH 4).
 - `manual_ph_dosing.*`: secuencias manuales no bloqueantes, límites de seguridad y estado de progreso.
 - `system_manager.*`: memoria, flash, LittleFS, reinicio y diagnóstico.
 - `api.*`: estado general y versión del firmware.
@@ -41,10 +42,10 @@ El perfil activo se conserva mientras la configuración incluida en el perfil si
 
 La iluminación ya no es solamente lógica. `light_output.*` conecta el estado calculado por `clock_manager.*` con el módulo de relé real.
 
-- señal del relé: GPIO 23;
+- señal del relé: GPIO 25;
 - módulo alimentado a 5 V de forma externa junto con el ESP32;
 - jumper del módulo: `H`;
-- lógica: `HIGH` en GPIO 23 = relé activado, `LOW` = relé desactivado;
+- lógica: `HIGH` en GPIO 25 = relé activado, `LOW` = relé desactivado;
 - al arrancar, la salida se fuerza primero a OFF antes de aplicar el estado configurado;
 - en modo manual, el switch del Dashboard gobierna directamente la salida;
 - en modo automático, la salida sigue el horario guardado;
@@ -53,6 +54,30 @@ La iluminación ya no es solamente lógica. `light_output.*` conecta el estado c
 - los cambios físicos de ON/OFF se registran en Eventos.
 
 La API de reloj/luz expone `outputAvailable`, `outputOn`, `outputPin` y `outputActiveLevel` para distinguir el estado físico del estado solicitado.
+
+Nota de hardware: GPIO23 queda reservado/no recomendado para salidas críticas en esta placa por el comportamiento inestable observado después de un corto accidental. La iluminación se mantiene en GPIO25 y el firmware reafirma su nivel cada 100 ms.
+
+
+## Sensor de pH PH-4502C
+
+La salida analógica `PO` del PH-4502C se lee en `GPIO34`, que pertenece a ADC1 y puede utilizarse mientras el WiFi está activo.
+
+- `V+` del módulo: 5 V.
+- `GND` del módulo: GND común.
+- `PO`: GPIO34.
+- `DO`: no se utiliza.
+- resolución ADC: 12 bits;
+- atenuación: 11 dB;
+- muestreo periódico: 500 ms;
+- cada lectura usa 15 muestras, descarta los 3 valores más bajos y los 3 más altos, y promedia el resto;
+- si el ADC queda cerca del máximo se marca `saturated` y no se calcula pH;
+- antes de calibrar, HydroControl muestra ADC y tensión reales pero el valor de pH permanece sin dato;
+- la calibración utiliza dos puntos: buffer pH 7.00 y buffer pH 4.00;
+- ambos milivoltajes se guardan en `Preferences` dentro del namespace `phsensor`;
+- el pH se calcula mediante interpolación lineal entre esos dos puntos;
+- las rutas son `GET /api/ph/sensor`, `POST /api/ph/calibrate` y `POST /api/ph/calibration/reset`.
+
+La página pH permite ver ADC/mV, capturar cada buffer, borrar la calibración y consultar el estado de saturación. El Dashboard recibe el pH real desde `/api/status`; no se usa una lectura simulada.
 
 ## Interfaz web
 

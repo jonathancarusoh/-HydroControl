@@ -5,6 +5,7 @@
 #include "event_logger.h"
 #include "manual_ph_dosing.h"
 #include "ph.h"
+#include "ph_sensor.h"
 #include "profile_manager.h"
 #include "system_manager.h"
 #include "wifi_manager.h"
@@ -184,6 +185,24 @@ void registerServerRoutes()
         "/api/config",
         HTTP_POST,
         handleSaveConfig
+    );
+
+    server.on(
+        "/api/ph/sensor",
+        HTTP_GET,
+        handleGetPhSensorStatus
+    );
+
+    server.on(
+        "/api/ph/calibrate",
+        HTTP_POST,
+        handleCapturePhCalibration
+    );
+
+    server.on(
+        "/api/ph/calibration/reset",
+        HTTP_POST,
+        handleResetPhCalibration
     );
 
     server.on(

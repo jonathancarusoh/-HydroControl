@@ -91,7 +91,10 @@ function formatPhRemainingTime(milliseconds) {
 }
 
 function updatePhReadingDisplay() {
-    const currentValue = Number(hydro.ph);
+    const currentValue =
+        hydro.ph === null || hydro.ph === undefined
+            ? NaN
+            : Number(hydro.ph);
     const target = getPhNumber("targetPh", 5.8);
     const tolerance = getPhNumber("phTolerance", 0.1);
 
@@ -712,6 +715,180 @@ async function cancelManualDose() {
     }
 }
 
+
+function renderPhSensorStatus(status) {
+    const badge = getPhElement("phSensorBadge");
+    const rawElement = getPhElement("phSensorRaw");
+    const voltageElement = getPhElement("phSensorVoltage");
+    const millivoltsElement = getPhElement("phSensorMillivolts");
+    const calibrationState = getPhElement("phSensorCalibrationState");
+    const calibration7 = getPhElement("phCalibration7Value");
+    const calibration4 = getPhElement("phCalibration4Value");
+
+    if (!rawElement) {
+        return;
+    }
+
+    const raw = Number(status?.raw);
+    const millivolts = Number(status?.millivolts);
+    const calibrated = Boolean(status?.calibrated);
+    const saturated = Boolean(status?.saturated);
+
+    rawElement.textContent =
+        Number.isFinite(raw) ? Math.round(raw) : "--";
+
+    voltageElement.textContent =
+        Number.isFinite(millivolts)
+            ? `${(millivolts / 1000).toFixed(3)} V`
+            : "--";
+
+    millivoltsElement.textContent =
+        Number.isFinite(millivolts)
+            ? `${Math.round(millivolts)} mV`
+            : "-- mV";
+
+    if (calibration7) {
+        const value = status?.calibration7Mv;
+        calibration7.textContent =
+            value === null || value === undefined
+                ? "Sin capturar"
+                : `${Number(value).toFixed(1)} mV guardados`;
+    }
+
+    if (calibration4) {
+        const value = status?.calibration4Mv;
+        calibration4.textContent =
+            value === null || value === undefined
+                ? "Sin capturar"
+                : `${Number(value).toFixed(1)} mV guardados`;
+    }
+
+    if (calibrationState) {
+        calibrationState.textContent = saturated
+            ? "ADC saturado"
+            : calibrated
+                ? "Calibrado"
+                : "Sin calibrar";
+    }
+
+    if (badge) {
+        badge.classList.remove(
+            "is-ready",
+            "is-plus",
+            "is-minus"
+        );
+
+        if (saturated) {
+            badge.textContent = "ADC SATURADO";
+            badge.classList.add("is-minus");
+        } else if (calibrated) {
+            badge.textContent = "CALIBRADO";
+            badge.classList.add("is-plus");
+        } else {
+            badge.textContent = "CALIBRAR";
+            badge.classList.add("is-ready");
+        }
+    }
+
+    // La API específica trae el mismo pH real que /api/status.
+    hydro.ph =
+        status?.ph === null || status?.ph === undefined
+            ? null
+            : Number(status.ph);
+
+    updatePhReadingDisplay();
+}
+
+async function fetchPhSensorStatus() {
+    const response = await fetch(
+        "/api/ph/sensor",
+        { cache: "no-store" }
+    );
+
+    const status = await readPhApiResponse(response);
+    renderPhSensorStatus(status);
+
+    return status;
+}
+
+async function capturePhCalibration(point) {
+    clearPhMessage("phSensorMessage");
+
+    const button = getPhElement(
+        point === "7"
+            ? "capturePh7Button"
+            : "capturePh4Button"
+    );
+
+    if (button) {
+        button.disabled = true;
+    }
+
+    try {
+        const response = await fetch(
+            "/api/ph/calibrate",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/x-www-form-urlencoded"
+                },
+                body: new URLSearchParams({
+                    point
+                }).toString()
+            }
+        );
+
+        const status = await readPhApiResponse(response);
+        renderPhSensorStatus(status);
+
+        showPhMessage(
+            "phSensorMessage",
+            `Punto pH ${point} guardado en ${status.millivolts} mV.`,
+            true
+        );
+
+        await getStatus();
+        updatePhReadingDisplay();
+    } catch (error) {
+        showPhMessage(
+            "phSensorMessage",
+            error.message,
+            false
+        );
+    } finally {
+        if (button) {
+            button.disabled = false;
+        }
+    }
+}
+
+async function resetPhCalibration() {
+    clearPhMessage("phSensorMessage");
+
+    try {
+        const response = await fetch(
+            "/api/ph/calibration/reset",
+            { method: "POST" }
+        );
+
+        const status = await readPhApiResponse(response);
+        renderPhSensorStatus(status);
+
+        showPhMessage(
+            "phSensorMessage",
+            "Calibración borrada. Capturá nuevamente pH 7 y pH 4.",
+            true
+        );
+    } catch (error) {
+        showPhMessage(
+            "phSensorMessage",
+            error.message,
+            false
+        );
+    }
+}
+
 async function refreshPhReading() {
     if (!getPhElement("currentPh")) {
         clearTimeout(phReadingTimer);
@@ -720,7 +897,11 @@ async function refreshPhReading() {
     }
 
     try {
-        await getStatus();
+        await Promise.all([
+            getStatus(),
+            fetchPhSensorStatus()
+        ]);
+
         updatePhReadingDisplay();
     } catch (error) {
         console.error("Error actualizando pH:", error);
@@ -728,11 +909,29 @@ async function refreshPhReading() {
 
     phReadingTimer = setTimeout(
         refreshPhReading,
-        2500
+        1500
     );
 }
 
 function bindPhPageEvents() {
+    getPhElement("capturePh7Button")
+        ?.addEventListener(
+            "click",
+            () => capturePhCalibration("7")
+        );
+
+    getPhElement("capturePh4Button")
+        ?.addEventListener(
+            "click",
+            () => capturePhCalibration("4")
+        );
+
+    getPhElement("resetPhCalibrationButton")
+        ?.addEventListener(
+            "click",
+            resetPhCalibration
+        );
+
     getPhElement("saveTargetButton")
         ?.addEventListener("click", saveTargetPh);
 
@@ -822,7 +1021,8 @@ async function updatePhPage() {
     try {
         await Promise.all([
             getStatus(),
-            loadPhConfig()
+            loadPhConfig(),
+            fetchPhSensorStatus()
         ]);
 
         updatePhReadingDisplay();

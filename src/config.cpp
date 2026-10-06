@@ -55,8 +55,9 @@ void loadConfig()
     config.lightScheduleEnabled =
         hydroPreferences.getBool("lightEnabled", false);
 
-    config.lightManualOn =
-        hydroPreferences.getBool("lightManual", false);
+    // El modo manual es transitorio: tras un reinicio la luz manual
+    // vuelve a OFF y no se restaura desde NVS.
+    config.lightManualOn = false;
 
     hydroPreferences.end();
 }

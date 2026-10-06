@@ -9,7 +9,7 @@ const char* SETUP_WIFI_PASSWORD = "hydrocontrol";
 const char* LOCAL_WIFI_NAME = "HydroControl";
 const char* LOCAL_WIFI_PASSWORD = "hydrocontrol";
 const char* MDNS_HOSTNAME = "hydrocontrol";
-const char* FIRMWARE_VERSION = "0.4.0";
+const char* FIRMWARE_VERSION = "0.5.0";
 const byte DNS_PORT = 53;
 const unsigned long RESTART_DELAY_MS = 3000;
 
@@ -21,7 +21,7 @@ bool littleFsReady = false;
 bool clockConfigured = false;
 bool clockRestoredAfterSoftwareRestart = false;
 
-float currentPh = 5.82f;
+float currentPh = NAN;
 float currentEc = 1.45f;
 float waterTemperature = 18.5f;
 float airHumidity = 61.0f;

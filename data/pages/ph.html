@@ -146,6 +146,108 @@
 
     </section>
 
+
+    <section class="ph-control-panel ph-sensor-panel">
+        <div class="ph-control-section-heading">
+            <div class="ph-control-section-icon is-sensor">
+                <i class="bi bi-activity"></i>
+            </div>
+
+            <div>
+                <span class="ph-control-kicker">
+                    SENSOR REAL
+                </span>
+
+                <h2>PH-4502C · GPIO34</h2>
+
+                <p>
+                    Lectura analógica filtrada y calibración de dos puntos.
+                </p>
+            </div>
+
+            <span
+                id="phSensorBadge"
+                class="ph-control-status-pill is-ready">
+                Leyendo
+            </span>
+        </div>
+
+        <div class="ph-sensor-live-grid">
+            <article>
+                <span>ADC filtrado</span>
+                <strong id="phSensorRaw">--</strong>
+                <small>0 – 4095</small>
+            </article>
+
+            <article>
+                <span>Tensión en GPIO34</span>
+                <strong id="phSensorVoltage">--</strong>
+                <small id="phSensorMillivolts">-- mV</small>
+            </article>
+
+            <article>
+                <span>Calibración</span>
+                <strong id="phSensorCalibrationState">Sin calibrar</strong>
+                <small>Buffers pH 7 y pH 4</small>
+            </article>
+        </div>
+
+        <div class="ph-calibration-grid">
+            <article class="ph-calibration-card">
+                <div>
+                    <span>Primer punto</span>
+                    <strong>Buffer pH 7.00</strong>
+                    <small id="phCalibration7Value">
+                        Sin capturar
+                    </small>
+                </div>
+
+                <button
+                    type="button"
+                    id="capturePh7Button"
+                    class="ph-control-secondary-button">
+                    Capturar pH 7
+                </button>
+            </article>
+
+            <article class="ph-calibration-card">
+                <div>
+                    <span>Segundo punto</span>
+                    <strong>Buffer pH 4.00</strong>
+                    <small id="phCalibration4Value">
+                        Sin capturar
+                    </small>
+                </div>
+
+                <button
+                    type="button"
+                    id="capturePh4Button"
+                    class="ph-control-secondary-button">
+                    Capturar pH 4
+                </button>
+            </article>
+        </div>
+
+        <div class="ph-sensor-actions">
+            <p>
+                Esperá a que la lectura se estabilice dentro de cada buffer y recién ahí capturá el punto.
+            </p>
+
+            <button
+                type="button"
+                id="resetPhCalibrationButton"
+                class="ph-control-danger-button">
+                Borrar calibración
+            </button>
+        </div>
+
+        <div
+            id="phSensorMessage"
+            class="ph-control-message d-none"
+            role="alert">
+        </div>
+    </section>
+
     <section class="ph-control-panel ph-manual-panel">
         <div class="ph-control-section-heading">
             <div class="ph-control-section-icon is-manual">
