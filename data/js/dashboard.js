@@ -479,7 +479,7 @@ async function dashboardGetConfig(forceRefresh = false) {
     return data;
 }
 
-function dashboardRenderPhStatus(currentPh, configData) {
+function dashboardRenderPhStatus(currentPh, configData, phSensorData = null) {
     const statusElement = document.getElementById("phStatus");
 
     if (!statusElement) {
@@ -488,6 +488,24 @@ function dashboardRenderPhStatus(currentPh, configData) {
 
     const target = Number(configData?.targetPh);
     const tolerance = Number(configData?.tolerance);
+
+    if (phSensorData?.saturated) {
+        statusElement.dataset.state = "unstable";
+        statusElement.textContent = "ADC SATURADO";
+        return;
+    }
+
+    if (phSensorData?.calibrated === false) {
+        statusElement.dataset.state = "unknown";
+        statusElement.textContent = "SIN CALIBRAR";
+        return;
+    }
+
+    if (phSensorData?.stable === false) {
+        statusElement.dataset.state = "unstable";
+        statusElement.textContent = "MEDICIÓN INESTABLE";
+        return;
+    }
 
     if (
         !Number.isFinite(currentPh) ||
@@ -784,7 +802,11 @@ async function updateDashboard() {
         dashboardRenderClock(statusData.clock);
         dashboardRenderLight(statusData.light);
         dashboardRenderActiveProfile(statusData.activeProfile);
-        dashboardRenderPhStatus(currentPh, configData);
+        dashboardRenderPhStatus(
+            currentPh,
+            configData,
+            statusData.phSensor
+        );
         dashboardRenderAutomaticConfig(configData);
         dashboardRenderSecondaryDetails(statusData, configData);
         dashboardRenderLastUpdate();
@@ -800,7 +822,7 @@ async function updateDashboard() {
         dashboardRenderClock(null);
         dashboardRenderLight(null);
         dashboardRenderActiveProfile(null);
-        dashboardRenderPhStatus(NaN, null);
+        dashboardRenderPhStatus(NaN, null, null);
         dashboardRenderAutomaticConfig(null);
         dashboardRenderSecondaryDetails(null, null);
 

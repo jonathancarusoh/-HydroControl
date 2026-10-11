@@ -13,9 +13,12 @@ void forcePhSensorSample();
 bool isPhSensorInitialized();
 bool isPhSensorCalibrated();
 bool isPhSensorSaturated();
+bool isPhSensorStable();
 
 uint16_t getPhSensorRaw();
 uint32_t getPhSensorMillivolts();
+uint32_t getPhSensorBatchSpreadMillivolts();
+uint32_t getPhSensorHistorySpreadMillivolts();
 float getPhSensorVoltage();
 float getPhCalibration7Millivolts();
 float getPhCalibration4Millivolts();

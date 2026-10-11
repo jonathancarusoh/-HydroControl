@@ -14,7 +14,9 @@ El firmware está dividido por responsabilidad para evitar que `main.cpp` concen
 - `profile_manager.*`: creación, edición, comparación, aplicación y eliminación de perfiles de cultivo.
 - `ph.*`: configuración y API general de pH.
 - `ph_sensor.*`: lectura real del PH-4502C en GPIO34, filtrado ADC, diagnóstico de saturación y calibración persistente de dos puntos (pH 7 / pH 4).
-- `manual_ph_dosing.*`: secuencias manuales no bloqueantes, límites de seguridad y estado de progreso.
+- `pump_outputs.*`: salidas físicas de las bombas pH- (GPIO26) y pH+ (GPIO27), arranque seguro e interbloqueo.
+- `manual_ph_dosing.*`: secuencias manuales no bloqueantes, límites de seguridad y accionamiento físico de bombas.
+- `automatic_ph_dosing.*`: regulación automática física con sensor estable, reloj obligatorio, intervalo y cuota móvil de 24 horas.
 - `system_manager.*`: memoria, flash, LittleFS, reinicio y diagnóstico.
 - `api.*`: estado general y versión del firmware.
 - `web_server.*`: archivos de LittleFS y registro central de rutas HTTP.
@@ -34,9 +36,9 @@ Cada perfil guarda la configuración automática y de iluminación propia de una
 
 La duración y el límite de las órdenes manuales pertenecen exclusivamente a la página pH y no forman parte de los perfiles. Por eso, modificar un límite manual no invalida el perfil activo y aplicar un perfil no altera la configuración manual.
 
-El campo `maxDailyDoses` representa una cuota automática por 24 horas, no una cantidad de dosis consecutivas. Cuando se incorpore el ejecutor automático, deberá rechazar una corrección si las dosis automáticas completadas durante las 24 horas anteriores ya alcanzaron esa cuota. Las dosis manuales se contabilizan por separado.
+El campo `maxDailyDoses` representa una cuota automática por 24 horas, no una cantidad de dosis consecutivas. El ejecutor automático guarda las marcas horarias de las dosis completadas y rechaza una corrección cuando la ventana móvil de 24 horas ya alcanzó esa cuota. Las dosis manuales se contabilizan por separado. Para garantizar esa ventana después de reinicios, el automático exige que el reloj interno esté configurado.
 
-El perfil activo se conserva mientras la configuración incluida en el perfil siga coincidiendo. Guardar sin modificar valores no lo desactiva. La aplicación o edición del perfil activo queda bloqueada durante una dosificación manual de pH.
+El perfil activo se conserva mientras la configuración incluida en el perfil siga coincidiendo. Guardar sin modificar valores no lo desactiva. La aplicación o edición del perfil activo queda bloqueada durante cualquier dosificación de pH, manual o automática.
 
 ## Salida física de iluminación
 
@@ -58,6 +60,18 @@ La API de reloj/luz expone `outputAvailable`, `outputOn`, `outputPin` y `outputA
 Nota de hardware: GPIO23 queda reservado/no recomendado para salidas críticas en esta placa por el comportamiento inestable observado después de un corto accidental. La iluminación se mantiene en GPIO25 y el firmware reafirma su nivel cada 100 ms.
 
 
+## Bombas de corrección de pH
+
+- bomba pH-: GPIO26 → TRIG del MOSFET;
+- bomba pH+: GPIO27 → TRIG del MOSFET;
+- lógica configurada: activa en HIGH;
+- ambos GPIO se fuerzan a OFF antes de habilitarlos como salida durante el arranque;
+- el firmware nunca permite encender pH- y pH+ al mismo tiempo;
+- una secuencia manual desactiva el modo automático y acciona la bomba real;
+- la regulación automática solo actúa con sensor calibrado y estable, reloj configurado, intervalo cumplido y cuota de 24 h disponible;
+- la primera vez que se instala la versión con actuador automático físico, el modo automático queda desactivado por seguridad y debe habilitarse manualmente después de las pruebas.
+
+
 ## Sensor de pH PH-4502C
 
 La salida analógica `PO` del PH-4502C se lee en `GPIO34`, que pertenece a ADC1 y puede utilizarse mientras el WiFi está activo.
@@ -69,7 +83,10 @@ La salida analógica `PO` del PH-4502C se lee en `GPIO34`, que pertenece a ADC1 
 - resolución ADC: 12 bits;
 - atenuación: 11 dB;
 - muestreo periódico: 500 ms;
-- cada lectura usa 15 muestras, descarta los 3 valores más bajos y los 3 más altos, y promedia el resto;
+- cada ciclo usa 21 muestras, descarta las 5 más bajas y las 5 más altas y promedia el resto;
+- aplica mediana temporal de 5 ciclos y EMA adaptativo para estabilizar la lectura sin arrastrar excesivamente cambios reales;
+- la calibración captura la mediana estable actual, no el EMA, para evitar que el buffer anterior contamine el nuevo punto;
+- se mide la dispersión dentro de cada lote y entre ciclos; si supera los límites, `stable=false` y el pH publicado pasa a `null`;
 - si el ADC queda cerca del máximo se marca `saturated` y no se calcula pH;
 - antes de calibrar, HydroControl muestra ADC y tensión reales pero el valor de pH permanece sin dato;
 - la calibración utiliza dos puntos: buffer pH 7.00 y buffer pH 4.00;
@@ -77,7 +94,7 @@ La salida analógica `PO` del PH-4502C se lee en `GPIO34`, que pertenece a ADC1 
 - el pH se calcula mediante interpolación lineal entre esos dos puntos;
 - las rutas son `GET /api/ph/sensor`, `POST /api/ph/calibrate` y `POST /api/ph/calibration/reset`.
 
-La página pH permite ver ADC/mV, capturar cada buffer, borrar la calibración y consultar el estado de saturación. El Dashboard recibe el pH real desde `/api/status`; no se usa una lectura simulada.
+La página pH permite ver ADC/mV, estabilidad, ruido de lote/historial, capturar cada buffer y borrar la calibración. Los botones de captura quedan bloqueados mientras la señal sea inestable. El Dashboard recibe el pH real desde `/api/status`; no se usa una lectura simulada.
 
 ## Interfaz web
 

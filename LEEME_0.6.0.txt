@@ -1,0 +1,26 @@
+HydroControl 0.6.0 — instalación de esta actualización
+
+1) Reemplazá los archivos del proyecto por los de este paquete respetando las carpetas.
+2) Compilá y cargá el firmware al ESP32.
+3) Como también cambiaron archivos de data/, cargá LittleFS / Upload Filesystem Image.
+4) En el primer arranque el modo automático queda OFF por seguridad.
+5) Probá manualmente:
+   - pH- -> GPIO26
+   - pH+ -> GPIO27
+   Una bomba por vez.
+6) Borrá la calibración anterior y repetí pH 7 y pH 4 únicamente cuando la página indique SEÑAL ESTABLE.
+7) Configurá el reloj. El automático necesita el reloj para respetar la cuota móvil de 24 h.
+8) Recién después activá el modo automático.
+
+Pines actuales:
+GPIO25 = relé de iluminación
+GPIO26 = MOSFET bomba pH-
+GPIO27 = MOSFET bomba pH+
+GPIO34 = PO del PH-4502C
+
+Verificaciones realizadas en esta preparación:
+- sintaxis C++ de los archivos modificados comprobada con stubs locales;
+- sintaxis JavaScript comprobada con Node;
+- HTML parseado correctamente.
+
+No se pudo ejecutar un build real de PlatformIO en este entorno porque no está instalado el toolchain ESP32. La prueba final es compilar en tu PlatformIO y luego probar las salidas físicas.

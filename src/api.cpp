@@ -34,8 +34,12 @@ void handleApiStatus()
     json += isPhSensorCalibrated() ? "true" : "false";
     json += ",\"saturated\":";
     json += isPhSensorSaturated() ? "true" : "false";
+    json += ",\"stable\":";
+    json += isPhSensorStable() ? "true" : "false";
     json += ",\"raw\":" + String(static_cast<unsigned int>(getPhSensorRaw())) + ",";
-    json += "\"millivolts\":" + String(getPhSensorMillivolts());
+    json += "\"millivolts\":" + String(getPhSensorMillivolts()) + ",";
+    json += "\"batchSpreadMv\":" + String(getPhSensorBatchSpreadMillivolts()) + ",";
+    json += "\"historySpreadMv\":" + String(getPhSensorHistorySpreadMillivolts());
     json += "},";
 
     json += "\"wifiRssi\":" +
@@ -96,7 +100,9 @@ void handleGetRuntimeInfo()
     json += "\"lightScheduleApi\":true,";
     json += "\"lightManualApi\":true,";
     json += "\"lightPhysicalOutput\":true,";
-    json += "\"phSensorApi\":true";
+    json += "\"phSensorApi\":true,";
+    json += "\"physicalPhPumps\":true,";
+    json += "\"automaticPhDosing\":true";
     json += "}";
 
     server.sendHeader("Cache-Control", "no-store");

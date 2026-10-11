@@ -2,6 +2,8 @@ let phManualStatusTimer = null;
 let phReadingTimer = null;
 let phLastManualActive = false;
 let phManualRequestInProgress = false;
+let phLastSensorStatus = null;
+let phLastAutomaticStatus = null;
 
 function showPhMessage(elementId, message, success) {
     const element = document.getElementById(elementId);
@@ -113,10 +115,22 @@ function updatePhReadingDisplay() {
             "is-stable",
             "is-high",
             "is-low",
-            "is-neutral"
+            "is-neutral",
+            "is-unstable"
         );
 
-        if (!Number.isFinite(currentValue)) {
+        if (phLastSensorStatus?.saturated) {
+            stateElement.textContent = "ADC SATURADO";
+            stateElement.classList.add("is-unstable");
+        } else if (phLastSensorStatus?.calibrated === false) {
+            stateElement.textContent = "SIN CALIBRAR";
+            stateElement.classList.add("is-neutral");
+        } else if (phLastSensorStatus?.stable === false) {
+            // El pH numérico se sigue mostrando durante la estabilización,
+            // pero dejamos claro que todavía no es apto para automático.
+            stateElement.textContent = "MEDICIÓN INESTABLE";
+            stateElement.classList.add("is-unstable");
+        } else if (!Number.isFinite(currentValue)) {
             stateElement.textContent = "SIN DATOS";
             stateElement.classList.add("is-neutral");
         } else if (currentValue > target + tolerance) {
@@ -716,6 +730,70 @@ async function cancelManualDose() {
 }
 
 
+function formatAutoInterval(seconds) {
+    const value = Math.max(0, Number(seconds) || 0);
+
+    if (value <= 0) {
+        return "sin espera";
+    }
+
+    const minutes = Math.floor(value / 60);
+    const remainingSeconds = Math.ceil(value % 60);
+
+    if (minutes > 0) {
+        return `${minutes} min ${remainingSeconds} s`;
+    }
+
+    return `${remainingSeconds} s`;
+}
+
+function renderAutomaticDoseStatus(status) {
+    phLastAutomaticStatus = status;
+
+    const state = getPhElement("autoRuntimeState");
+    const detail = getPhElement("autoRuntimeDetail");
+    const panel = getPhElement("autoRuntimeStatus");
+
+    if (!state || !detail || !panel) {
+        return;
+    }
+
+    const active = Boolean(status?.active);
+    const enabled = Boolean(status?.enabled);
+    const used = Number(status?.dailyUsed || 0);
+    const limit = Number(status?.dailyLimit || 0);
+    const remaining = Number(status?.intervalRemainingSeconds || 0);
+
+    panel.classList.toggle("is-active", active);
+    panel.classList.toggle("is-disabled", !enabled);
+
+    state.textContent =
+        status?.blockReasonLabel ||
+        (enabled ? "Automático listo" : "Automático desactivado");
+
+    if (active) {
+        detail.textContent =
+            `${status.directionLabel || "pH"} · bomba activa · ` +
+            `${(Number(status.doseDurationMs || 0) / 1000).toFixed(1)} s por dosis`;
+    } else {
+        detail.textContent =
+            `Cuota: ${used}/${limit} dosis en 24 h · ` +
+            `intervalo restante: ${formatAutoInterval(remaining)}`;
+    }
+}
+
+async function fetchAutomaticDoseStatus() {
+    const response = await fetch(
+        "/api/ph/automatic/status",
+        { cache: "no-store" }
+    );
+
+    const status = await readPhApiResponse(response);
+    renderAutomaticDoseStatus(status);
+
+    return status;
+}
+
 function renderPhSensorStatus(status) {
     const badge = getPhElement("phSensorBadge");
     const rawElement = getPhElement("phSensorRaw");
@@ -724,6 +802,8 @@ function renderPhSensorStatus(status) {
     const calibrationState = getPhElement("phSensorCalibrationState");
     const calibration7 = getPhElement("phCalibration7Value");
     const calibration4 = getPhElement("phCalibration4Value");
+    const signalState = getPhElement("phSensorSignalState");
+    const noiseElement = getPhElement("phSensorNoise");
 
     if (!rawElement) {
         return;
@@ -731,8 +811,17 @@ function renderPhSensorStatus(status) {
 
     const raw = Number(status?.raw);
     const millivolts = Number(status?.millivolts);
+    phLastSensorStatus = status;
+
     const calibrated = Boolean(status?.calibrated);
     const saturated = Boolean(status?.saturated);
+    const stable = Boolean(status?.stable);
+    const batchSpread = Number(status?.batchSpreadMv);
+    const historySpread = Number(status?.historySpreadMv);
+    const stableSamples = Number(status?.stableSamples);
+    const stableSamplesRequired = Number(status?.stableSamplesRequired);
+    const stabilityWindowSpread = Number(status?.stabilityWindowSpreadMv);
+    const stabilityWindowMaxSpread = Number(status?.stabilityWindowMaxSpreadMv);
 
     rawElement.textContent =
         Number.isFinite(raw) ? Math.round(raw) : "--";
@@ -746,6 +835,66 @@ function renderPhSensorStatus(status) {
         Number.isFinite(millivolts)
             ? `${Math.round(millivolts)} mV`
             : "-- mV";
+
+    if (signalState) {
+        signalState.textContent = saturated
+            ? "SATURADA"
+            : stable
+                ? "ESTABLE"
+                : "INESTABLE";
+    }
+
+    if (noiseElement) {
+        const batchText = Number.isFinite(batchSpread)
+            ? `${Math.round(batchSpread)} mV`
+            : "--";
+        const historyText = Number.isFinite(historySpread)
+            ? `${Math.round(historySpread)} mV`
+            : "--";
+
+        const requiredSamples =
+            Number.isFinite(stableSamplesRequired) && stableSamplesRequired > 0
+                ? stableSamplesRequired
+                : 120;
+        const currentSamples =
+            Number.isFinite(stableSamples)
+                ? Math.min(stableSamples, requiredSamples)
+                : 0;
+
+        const elapsedMs = Number(status?.stabilityElapsedMs);
+        const requiredMs = Number(status?.stabilityRequiredMs);
+        const elapsedSeconds = Number.isFinite(elapsedMs)
+            ? Math.min(60, Math.floor(elapsedMs / 1000))
+            : Math.floor(currentSamples * 0.5);
+        const requiredSeconds = Number.isFinite(requiredMs)
+            ? Math.round(requiredMs / 1000)
+            : Math.round(requiredSamples * 0.5);
+
+        const rangeMin = Number(status?.stabilityWindowMinMv);
+        const rangeMax = Number(status?.stabilityWindowMaxMv);
+        const rangeAmplitude = Number.isFinite(stabilityWindowSpread)
+            ? Math.round(stabilityWindowSpread)
+            : null;
+        const rangeLimit = Number.isFinite(stabilityWindowMaxSpread)
+            ? Math.round(stabilityWindowMaxSpread)
+            : 10;
+
+        const rangeText =
+            Number.isFinite(rangeMin) &&
+            Number.isFinite(rangeMax) &&
+            currentSamples > 0
+                ? `${Math.round(rangeMin)}–${Math.round(rangeMax)} mV`
+                : "--";
+
+        const progressText = stable
+            ? `estable ${requiredSeconds}/${requiredSeconds} s`
+            : `estabilizando ${elapsedSeconds}/${requiredSeconds} s`;
+
+        noiseElement.textContent =
+            `Ruido lote ${batchText} · historial ${historyText} · ` +
+            `${progressText} · rango ${rangeText} · ` +
+            `amplitud ${rangeAmplitude ?? "--"} mV (máx. ${rangeLimit} mV)`;
+    }
 
     if (calibration7) {
         const value = status?.calibration7Mv;
@@ -766,9 +915,11 @@ function renderPhSensorStatus(status) {
     if (calibrationState) {
         calibrationState.textContent = saturated
             ? "ADC saturado"
-            : calibrated
-                ? "Calibrado"
-                : "Sin calibrar";
+            : !calibrated
+                ? "Sin calibrar"
+                : stable
+                    ? "Calibrado · estable"
+                    : "Calibrado · señal inestable";
     }
 
     if (badge) {
@@ -781,14 +932,26 @@ function renderPhSensorStatus(status) {
         if (saturated) {
             badge.textContent = "ADC SATURADO";
             badge.classList.add("is-minus");
-        } else if (calibrated) {
-            badge.textContent = "CALIBRADO";
-            badge.classList.add("is-plus");
+        } else if (!calibrated) {
+            badge.textContent = stable
+                ? "LECTURA ESTABLE · PUEDE CALIBRAR"
+                : "LECTURA INESTABLE";
+            badge.classList.add(stable ? "is-ready" : "is-minus");
+        } else if (!stable) {
+            badge.textContent = "SEÑAL INESTABLE";
+            badge.classList.add("is-minus");
         } else {
-            badge.textContent = "CALIBRAR";
-            badge.classList.add("is-ready");
+            badge.textContent = "CALIBRADO · ESTABLE";
+            badge.classList.add("is-plus");
         }
     }
+
+    ["capturePh7Button", "capturePh4Button"].forEach(id => {
+        const button = getPhElement(id);
+        if (button) {
+            button.disabled = saturated || !stable;
+        }
+    });
 
     // La API específica trae el mismo pH real que /api/status.
     hydro.ph =
@@ -858,7 +1021,9 @@ async function capturePhCalibration(point) {
         );
     } finally {
         if (button) {
-            button.disabled = false;
+            button.disabled =
+                Boolean(phLastSensorStatus?.saturated) ||
+                phLastSensorStatus?.stable === false;
         }
     }
 }
@@ -899,7 +1064,8 @@ async function refreshPhReading() {
     try {
         await Promise.all([
             getStatus(),
-            fetchPhSensorStatus()
+            fetchPhSensorStatus(),
+            fetchAutomaticDoseStatus()
         ]);
 
         updatePhReadingDisplay();
@@ -909,7 +1075,7 @@ async function refreshPhReading() {
 
     phReadingTimer = setTimeout(
         refreshPhReading,
-        1500
+        1000
     );
 }
 
@@ -1022,7 +1188,8 @@ async function updatePhPage() {
         await Promise.all([
             getStatus(),
             loadPhConfig(),
-            fetchPhSensorStatus()
+            fetchPhSensorStatus(),
+            fetchAutomaticDoseStatus()
         ]);
 
         updatePhReadingDisplay();
@@ -1039,6 +1206,6 @@ async function updatePhPage() {
 
     phReadingTimer = setTimeout(
         refreshPhReading,
-        2500
+        1000
     );
 }

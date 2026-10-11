@@ -3,6 +3,7 @@
 #include <WiFi.h>
 
 #include "app_state.h"
+#include "automatic_ph_dosing.h"
 #include "clock_manager.h"
 #include "config.h"
 #include "event_logger.h"
@@ -10,6 +11,7 @@
 #include "light_output.h"
 #include "profile_manager.h"
 #include "ph_sensor.h"
+#include "pump_outputs.h"
 #include "utils.h"
 #include "web_server.h"
 #include "wifi_manager.h"
@@ -70,8 +72,9 @@ void setup()
 {
     Serial.begin(115200);
 
-    // Primero aseguramos la salida de iluminación en OFF.
+    // Todas las salidas físicas arrancan en un estado seguro.
     initializeLightOutput();
+    initializePumpOutputs();
     delay(100);
 
     printStartupBanner();
@@ -95,6 +98,7 @@ void setup()
 
     initializeClockRuntime();
     initializePhSensor();
+    initializeAutomaticPhDosing();
     processLightOutput();
 
     String startupDetail = "Firmware ";
@@ -127,8 +131,9 @@ void loop()
     }
 
     server.handleClient();
-    processManualPhDosing();
     processPhSensor();
+    processManualPhDosing();
+    processAutomaticPhDosing();
     processLightOutput();
     monitorRouterWifiState();
 

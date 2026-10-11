@@ -1,0 +1,9 @@
+HydroControl 0.6.3 — calibración con ventana estable de 60 segundos
+
+- La calibración ya no se habilita tras solo 10 segundos.
+- Se analizan 120 lecturas filtradas consecutivas (aprox. 60 s a 500 ms por ciclo).
+- Para declarar ESTABLE, el rango total del último minuto debe ser <= 10 mV.
+- El ruido bruto de lote sigue siendo diagnóstico y solo reinicia la ventana si supera 180 mV.
+- Al capturar pH 7 o pH 4 se guarda el promedio de todo el minuto estable, no una lectura instantánea.
+- La pantalla muestra el progreso de la ventana 0/60 s y su rango en mV.
+- Firmware: 0.6.3.

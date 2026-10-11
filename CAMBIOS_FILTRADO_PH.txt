@@ -1,0 +1,13 @@
+HydroControl - estabilización de pH (10/10/2026)
+
+- Medición de 21 muestras por ciclo, descartando 5 extremos a cada lado.
+- Mediana temporal de 5 ciclos + EMA alpha 0,12 para evitar saltos visuales.
+- Detección de ruido: dispersión dentro del lote y entre ciclos.
+- Se publica pH=null cuando la señal no es estable; no se ocultan fallas de sensor.
+- Bloqueo de nuevas capturas de calibración mientras la señal esté inestable.
+- API /api/ph/sensor/status agrega stable, batchSpreadMv, historySpreadMv.
+- Se conservan las calibraciones almacenadas en NVS, los pines y las bombas.
+
+IMPORTANTE: el filtrado NO repara un sensor, fuente o cableado defectuoso.
+Si aparece SIN DATOS durante ruido, eso es intencional y seguro.
+Para subir el sitio web actualizado, no se requiere cambiar data/ en esta versión.

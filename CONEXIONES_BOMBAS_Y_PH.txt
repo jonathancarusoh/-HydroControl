@@ -1,0 +1,25 @@
+HydroControl 0.6.0 — conexiones actuales
+
+ESP32 -> actuadores/sensor
+
+GPIO25 -> IN del relé de iluminación
+GPIO26 -> TRIG del MOSFET de la bomba pH-
+GPIO27 -> TRIG del MOSFET de la bomba pH+
+GPIO34 <- PO del PH-4502C
+GND    -> GND común de PH-4502C y entradas de ambos MOSFET
+5V     -> V+ del PH-4502C
+
+Bombas:
+- Las bombas se alimentan desde la fuente de 12 V, no desde el ESP32.
+- El negativo de la fuente de 12 V debe compartir referencia GND con el ESP32/MOSFET.
+- Los módulos actuales están configurados en firmware como TRIG activo en HIGH.
+
+Prueba inicial recomendada:
+1. Dejar modo automático OFF.
+2. Probar una sola dosis manual pH- de 0,5–1,0 s con agua.
+3. Confirmar que solo gira la bomba pH-.
+4. Repetir con pH+.
+5. Borrar la calibración vieja.
+6. Calibrar pH 7 y pH 4 solo cuando la interfaz indique señal ESTABLE.
+7. Configurar el reloj.
+8. Recién después habilitar el modo automático.

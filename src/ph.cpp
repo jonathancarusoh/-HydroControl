@@ -1,5 +1,6 @@
 #include "ph.h"
 #include "app_state.h"
+#include "automatic_ph_dosing.h"
 #include "clock_manager.h"
 #include "config.h"
 #include "event_logger.h"
@@ -141,6 +142,19 @@ void handleSaveConfig()
 
     bool automaticMode =
         server.arg("automaticMode") == "true";
+
+    if (
+        isAutomaticPhDosingActive() &&
+        automaticMode
+    )
+    {
+        server.send(
+            409,
+            "application/json",
+            "{\"success\":false,\"message\":\"Hay una dosis automática en curso. Podés desactivar el automático, pero no cambiar sus parámetros hasta que termine.\"}"
+        );
+        return;
+    }
 
     float manualDoseSeconds =
         server.arg("manualDoseSeconds").toFloat();

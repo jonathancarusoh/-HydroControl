@@ -1,0 +1,10 @@
+HydroControl 0.6.4
+==================
+
+- El pH calculado se muestra en vivo apenas existen los dos puntos de calibración, incluso mientras la señal se estabiliza.
+- La dosificación automática SIGUE bloqueada hasta que el sensor esté estable.
+- El Dashboard muestra MEDICIÓN INESTABLE mientras la ventana de estabilidad no esté completa.
+- La ventana de estabilidad ahora representa 60 s continuos reales: si el valor filtrado sale de la banda total de 10 mV, el contador reinicia desde la lectura actual.
+- Ya no queda clavada en 60/60 s arrastrando valores de la solución anterior.
+- Se muestran progreso y rango explícitos: mínimo–máximo en mV, amplitud actual y límite máximo de 10 mV.
+- Versión de firmware: 0.6.4.

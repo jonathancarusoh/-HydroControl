@@ -1,0 +1,39 @@
+HydroControl 0.6.0 — bombas físicas + automático seguro + pH estabilizado
+
+Cambios principales:
+- Bomba pH- física en GPIO26.
+- Bomba pH+ física en GPIO27.
+- Interbloqueo: nunca se encienden ambas bombas a la vez.
+- Arranque seguro: ambas bombas quedan OFF antes de inicializar el resto del sistema.
+- Dosificación manual ahora acciona realmente los MOSFET.
+- Regulación automática física implementada.
+- El automático exige:
+  * sensor pH calibrado;
+  * señal estable;
+  * reloj configurado;
+  * 15 s de estabilidad continua;
+  * intervalo entre dosis cumplido;
+  * cuota máxima de 24 h disponible.
+- Historial de dosis automáticas persistente en NVS para la ventana de 24 h.
+- En la primera instalación de esta versión, el automático se fuerza a OFF por seguridad.
+- Filtro de pH corregido:
+  * 21 muestras por ciclo;
+  * descarte de 5 extremos por lado;
+  * mediana temporal de 5 ciclos;
+  * EMA adaptativo;
+  * detección de ruido dentro del lote y entre ciclos;
+  * pH=null si la señal no es confiable.
+- La calibración pH 7/pH 4 captura la mediana estable actual y no el EMA lento.
+- ADC mostrado también queda suavizado para que no contradiga visualmente la tensión filtrada.
+- La página pH muestra ESTABLE / INESTABLE y la dispersión en mV.
+- Los botones de calibración se bloquean mientras la señal está inestable.
+- Firmware: 0.6.0.
+
+Pines:
+- GPIO25: relé de iluminación.
+- GPIO26: MOSFET bomba pH-.
+- GPIO27: MOSFET bomba pH+.
+- GPIO34: PO del PH-4502C.
+
+IMPORTANTE:
+Después de instalar esta versión, borrar la calibración vieja y volver a capturar pH 7 y pH 4 cuando la interfaz indique SEÑAL ESTABLE.

@@ -1,0 +1,8 @@
+HydroControl 0.4.2
+
+- La salida del relé de iluminación pasa de GPIO 23 a GPIO 25.
+- Jumper del módulo de relé: H (activo en HIGH).
+- El pin se reafirma como OUTPUT cada 100 ms.
+- El nivel HIGH/LOW se vuelve a escribir cada 100 ms aunque el estado lógico no cambie.
+- Los eventos solo se registran cuando cambia realmente ON/OFF.
+- Arquitectura actualizada.

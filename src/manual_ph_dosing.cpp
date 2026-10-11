@@ -4,6 +4,8 @@
 #include "config.h"
 #include "event_logger.h"
 #include "profile_manager.h"
+#include "pump_outputs.h"
+#include "automatic_ph_dosing.h"
 #include "utils.h"
 
 namespace
@@ -69,14 +71,18 @@ ManualPhDirection parseDirection(const String& value)
     return ManualPhDirection::None;
 }
 
-// Punto único preparado para conectar el GPIO/MOSFET o relé en el futuro.
-// Por ahora solamente mantiene el estado lógico de la salida.
+// Acciona las bombas físicas mediante MOSFET. El módulo de salidas
+// aplica el interbloqueo para impedir que pH- y pH+ queden activos juntos.
 void setManualPumpOutput(
     ManualPhDirection direction,
     bool enabled
 )
 {
-    (void) direction;
+    setPhPumpOutputs(
+        enabled && direction == ManualPhDirection::Minus,
+        enabled && direction == ManualPhDirection::Plus
+    );
+
     runtime.outputActive = enabled;
 }
 
@@ -164,6 +170,8 @@ String buildStatusJson()
     json += ",\"progressPercent\":" + String(progressPercent);
     json += ",\"automaticMode\":";
     json += config.automaticMode ? "true" : "false";
+    json += ",\"minusPin\":" + String(PH_MINUS_PUMP_PIN);
+    json += ",\"plusPin\":" + String(PH_PLUS_PUMP_PIN);
     json += "}";
 
     return json;
@@ -248,6 +256,16 @@ void handleGetManualPhDoseStatus()
 
 void handleStartManualPhDose()
 {
+    if (isAutomaticPhDosingActive())
+    {
+        server.send(
+            409,
+            "application/json; charset=utf-8",
+            "{\"success\":false,\"message\":\"Hay una dosis automática en curso. Esperá a que termine.\"}"
+        );
+        return;
+    }
+
     if (runtime.active)
     {
         server.send(

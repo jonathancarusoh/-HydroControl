@@ -10,8 +10,17 @@
 namespace
 {
 constexpr unsigned long PH_SAMPLE_INTERVAL_MS = 500;
-constexpr uint8_t PH_SAMPLE_COUNT = 15;
-constexpr uint8_t PH_TRIM_COUNT = 3;
+constexpr uint8_t PH_SAMPLE_COUNT = 21;
+constexpr uint8_t PH_TRIM_COUNT = 5;
+constexpr uint8_t PH_HISTORY_COUNT = 5;
+constexpr uint8_t PH_STABLE_SAMPLES_REQUIRED = 120;
+
+constexpr float PH_EMA_ALPHA = 0.12f;
+constexpr float PH_EMA_FAST_ALPHA = 0.35f;
+constexpr float PH_EMA_FAST_THRESHOLD_MV = 80.0f;
+
+constexpr uint32_t PH_MAX_BATCH_SAFETY_SPREAD_MV = 180;
+constexpr uint32_t PH_MAX_STABILITY_WINDOW_SPREAD_MV = 10;
 constexpr uint16_t PH_ADC_SATURATION_RAW = 4070;
 constexpr float PH_MIN_CALIBRATION_SEPARATION_MV = 30.0f;
 
@@ -19,9 +28,33 @@ Preferences phPreferences;
 
 bool sensorInitialized = false;
 bool sensorSaturated = false;
+bool sensorStable = false;
 
 uint16_t filteredRaw = 0;
 uint32_t filteredMillivolts = 0;
+uint32_t medianMillivolts = 0;
+
+float smoothedRaw = NAN;
+float smoothedMillivolts = NAN;
+
+uint32_t batchSpreadMv = 0;
+uint32_t historySpreadMv = 0;
+uint32_t filteredStepMv = 0;
+uint32_t previousFilteredMillivolts = 0;
+bool hasPreviousFilteredMillivolts = false;
+
+uint32_t mvHistory[PH_HISTORY_COUNT] = {};
+uint16_t rawHistory[PH_HISTORY_COUNT] = {};
+uint8_t historyCount = 0;
+uint8_t historyIndex = 0;
+uint8_t stableSampleCount = 0;
+uint32_t stabilityWindowMv[PH_STABLE_SAMPLES_REQUIRED] = {};
+uint8_t stabilityWindowCount = 0;
+uint8_t stabilityWindowIndex = 0;
+uint32_t stabilityWindowSpreadMv = 0;
+uint32_t stabilityWindowMinimumMv = 0;
+uint32_t stabilityWindowMaximumMv = 0;
+float stabilityWindowAverageMv = NAN;
 unsigned long lastSampleAt = 0;
 
 float calibration7Mv = NAN;
@@ -120,6 +153,9 @@ float calculatePhFromMillivolts(float millivolts)
 
 void updateCurrentPh()
 {
+    // Una vez calibrado, mostramos el pH continuamente aunque la señal
+    // todavía esté estabilizándose. La estabilidad sigue siendo obligatoria
+    // para calibrar y para dosificar en automático.
     if (
         !sensorInitialized ||
         sensorSaturated ||
@@ -135,7 +171,6 @@ void updateCurrentPh()
             static_cast<float>(filteredMillivolts)
         );
 
-    // Un valor fuera del rango físico útil se considera inválido.
     currentPh =
         isfinite(calculated) &&
         calculated >= 0.0f &&
@@ -149,6 +184,8 @@ void sampleSensor()
     uint16_t rawSamples[PH_SAMPLE_COUNT];
     uint32_t mvSamples[PH_SAMPLE_COUNT];
 
+    // Se toman dos conversiones muy próximas por muestra:
+    // raw sirve de diagnóstico y mV es la referencia usada para el pH.
     for (uint8_t i = 0; i < PH_SAMPLE_COUNT; i++)
     {
         rawSamples[i] = analogRead(PH_SENSOR_PIN);
@@ -161,7 +198,6 @@ void sampleSensor()
 
     uint32_t rawSum = 0;
     uint32_t mvSum = 0;
-    uint8_t kept = 0;
 
     for (
         uint8_t i = PH_TRIM_COUNT;
@@ -171,22 +207,205 @@ void sampleSensor()
     {
         rawSum += rawSamples[i];
         mvSum += mvSamples[i];
-        kept++;
     }
 
-    if (kept == 0)
-    {
-        return;
-    }
+    constexpr uint8_t kept =
+        PH_SAMPLE_COUNT - 2 * PH_TRIM_COUNT;
 
-    filteredRaw =
+    const uint16_t measuredRaw =
         static_cast<uint16_t>(rawSum / kept);
+    const uint32_t measuredMv = mvSum / kept;
+
+    batchSpreadMv =
+        mvSamples[PH_SAMPLE_COUNT - PH_TRIM_COUNT - 1] -
+        mvSamples[PH_TRIM_COUNT];
+
+    mvHistory[historyIndex] = measuredMv;
+    rawHistory[historyIndex] = measuredRaw;
+
+    historyIndex =
+        (historyIndex + 1) % PH_HISTORY_COUNT;
+
+    if (historyCount < PH_HISTORY_COUNT)
+    {
+        historyCount++;
+    }
+
+    uint32_t sortedMvHistory[PH_HISTORY_COUNT] = {};
+    uint16_t sortedRawHistory[PH_HISTORY_COUNT] = {};
+
+    for (uint8_t i = 0; i < historyCount; i++)
+    {
+        sortedMvHistory[i] = mvHistory[i];
+        sortedRawHistory[i] = rawHistory[i];
+    }
+
+    sortSmallArray(sortedMvHistory, historyCount);
+    sortSmallArray(sortedRawHistory, historyCount);
+
+    medianMillivolts =
+        sortedMvHistory[historyCount / 2];
+
+    const uint16_t medianRaw =
+        sortedRawHistory[historyCount / 2];
+
+    historySpreadMv =
+        sortedMvHistory[historyCount - 1] -
+        sortedMvHistory[0];
+
+    if (!isfinite(smoothedMillivolts))
+    {
+        smoothedMillivolts =
+            static_cast<float>(medianMillivolts);
+    }
+    else
+    {
+        const float difference =
+            fabsf(
+                static_cast<float>(medianMillivolts) -
+                smoothedMillivolts
+            );
+
+        const float alpha =
+            difference >= PH_EMA_FAST_THRESHOLD_MV
+                ? PH_EMA_FAST_ALPHA
+                : PH_EMA_ALPHA;
+
+        smoothedMillivolts +=
+            alpha *
+            (static_cast<float>(medianMillivolts) -
+            smoothedMillivolts);
+    }
+
+    if (!isfinite(smoothedRaw))
+    {
+        smoothedRaw = static_cast<float>(medianRaw);
+    }
+    else
+    {
+        const float rawDifference =
+            fabsf(
+                static_cast<float>(medianRaw) -
+                smoothedRaw
+            );
+
+        const float rawAlpha =
+            rawDifference >= 100.0f
+                ? PH_EMA_FAST_ALPHA
+                : PH_EMA_ALPHA;
+
+        smoothedRaw +=
+            rawAlpha *
+            (static_cast<float>(medianRaw) - smoothedRaw);
+    }
 
     filteredMillivolts =
-        static_cast<uint32_t>(mvSum / kept);
+        static_cast<uint32_t>(smoothedMillivolts + 0.5f);
+    filteredRaw =
+        static_cast<uint16_t>(smoothedRaw + 0.5f);
+
+    if (hasPreviousFilteredMillivolts)
+    {
+        filteredStepMv =
+            filteredMillivolts > previousFilteredMillivolts
+                ? filteredMillivolts - previousFilteredMillivolts
+                : previousFilteredMillivolts - filteredMillivolts;
+    }
+    else
+    {
+        filteredStepMv = 0;
+        hasPreviousFilteredMillivolts = true;
+    }
+
+    previousFilteredMillivolts = filteredMillivolts;
 
     sensorSaturated =
-        filteredRaw >= PH_ADC_SATURATION_RAW;
+        rawSamples[PH_SAMPLE_COUNT - 1] >=
+        PH_ADC_SATURATION_RAW;
+
+    // Para calibrar exigimos 60 segundos CONTINUOS dentro de una banda
+    // total de 10 mV. Si la lectura se desplaza más de 10 mV, la ventana se
+    // reinicia desde la lectura actual. Así el contador representa progreso
+    // real hacia la estabilidad y no queda clavado en 60/60 mientras arrastra
+    // valores de la solución anterior.
+    //
+    // El ruido bruto del lote se sigue mostrando como diagnóstico. Solo un
+    // pico muy grande (>180 mV), saturación o una lectura inválida reinician
+    // por seguridad la ventana completa.
+    const bool validForStability =
+        historyCount == PH_HISTORY_COUNT &&
+        !sensorSaturated &&
+        measuredMv >= 50 &&
+        batchSpreadMv <= PH_MAX_BATCH_SAFETY_SPREAD_MV;
+
+    if (!validForStability)
+    {
+        stabilityWindowCount = 0;
+        stabilityWindowIndex = 0;
+        stableSampleCount = 0;
+        stabilityWindowSpreadMv = 0;
+        stabilityWindowMinimumMv = 0;
+        stabilityWindowMaximumMv = 0;
+        stabilityWindowAverageMv = NAN;
+        sensorStable = false;
+    }
+    else
+    {
+        stabilityWindowMv[stabilityWindowIndex] =
+            filteredMillivolts;
+
+        stabilityWindowIndex =
+            (stabilityWindowIndex + 1) %
+            PH_STABLE_SAMPLES_REQUIRED;
+
+        if (stabilityWindowCount < PH_STABLE_SAMPLES_REQUIRED)
+        {
+            stabilityWindowCount++;
+        }
+
+        uint32_t minimumMv = stabilityWindowMv[0];
+        uint32_t maximumMv = stabilityWindowMv[0];
+        uint32_t sumMv = 0;
+
+        for (uint8_t i = 0; i < stabilityWindowCount; i++)
+        {
+            const uint32_t value = stabilityWindowMv[i];
+            minimumMv = value < minimumMv ? value : minimumMv;
+            maximumMv = value > maximumMv ? value : maximumMv;
+            sumMv += value;
+        }
+
+        const uint32_t candidateSpreadMv = maximumMv - minimumMv;
+
+        if (candidateSpreadMv > PH_MAX_STABILITY_WINDOW_SPREAD_MV)
+        {
+            // La meseta salió de la banda. Reiniciamos el minuto desde esta
+            // lectura, que pasa a ser el nuevo punto de partida.
+            stabilityWindowMv[0] = filteredMillivolts;
+            stabilityWindowCount = 1;
+            stabilityWindowIndex = 1;
+            stableSampleCount = 1;
+            stabilityWindowSpreadMv = 0;
+            stabilityWindowMinimumMv = filteredMillivolts;
+            stabilityWindowMaximumMv = filteredMillivolts;
+            stabilityWindowAverageMv =
+                static_cast<float>(filteredMillivolts);
+            sensorStable = false;
+        }
+        else
+        {
+            stableSampleCount = stabilityWindowCount;
+            stabilityWindowSpreadMv = candidateSpreadMv;
+            stabilityWindowMinimumMv = minimumMv;
+            stabilityWindowMaximumMv = maximumMv;
+            stabilityWindowAverageMv =
+                static_cast<float>(sumMv) /
+                static_cast<float>(stabilityWindowCount);
+
+            sensorStable =
+                stabilityWindowCount == PH_STABLE_SAMPLES_REQUIRED;
+        }
+    }
 
     lastSampleAt = millis();
     updateCurrentPh();
@@ -199,7 +418,7 @@ String nullableFloatJson(float value, unsigned int decimals)
         return "null";
     }
 
-    return String(value, static_cast<unsigned int>(decimals));
+    return String(value, decimals);
 }
 
 String buildSensorStatusJson()
@@ -209,10 +428,46 @@ String buildSensorStatusJson()
     json += ",\"initialized\":";
     json += sensorInitialized ? "true" : "false";
     json += ",\"pin\":" + String(PH_SENSOR_PIN);
-    json += ",\"raw\":" + String(static_cast<unsigned int>(filteredRaw));
-    json += ",\"millivolts\":" + String(filteredMillivolts);
+    json += ",\"raw\":" +
+        String(static_cast<unsigned int>(filteredRaw));
+    json += ",\"millivolts\":" +
+        String(filteredMillivolts);
+    json += ",\"medianMillivolts\":" +
+        String(medianMillivolts);
     json += ",\"voltage\":" +
         String(filteredMillivolts / 1000.0f, 3);
+    json += ",\"stable\":";
+    json += sensorStable ? "true" : "false";
+    json += ",\"stableSamples\":" +
+        String(stableSampleCount);
+    json += ",\"stableSamplesRequired\":" +
+        String(PH_STABLE_SAMPLES_REQUIRED);
+    json += ",\"batchSpreadMv\":" +
+        String(batchSpreadMv);
+    json += ",\"historySpreadMv\":" +
+        String(historySpreadMv);
+    json += ",\"filteredStepMv\":" +
+        String(filteredStepMv);
+    json += ",\"stabilityWindowSpreadMv\":" +
+        String(stabilityWindowSpreadMv);
+    json += ",\"stabilityWindowMaxSpreadMv\":" +
+        String(PH_MAX_STABILITY_WINDOW_SPREAD_MV);
+    json += ",\"stabilityWindowMinMv\":" +
+        String(stabilityWindowMinimumMv);
+    json += ",\"stabilityWindowMaxMv\":" +
+        String(stabilityWindowMaximumMv);
+    json += ",\"stabilityElapsedMs\":" +
+        String(
+            static_cast<uint32_t>(stableSampleCount) *
+            PH_SAMPLE_INTERVAL_MS
+        );
+    json += ",\"stabilityRequiredMs\":" +
+        String(
+            static_cast<uint32_t>(PH_STABLE_SAMPLES_REQUIRED) *
+            PH_SAMPLE_INTERVAL_MS
+        );
+    json += ",\"stabilityAverageMv\":";
+    json += nullableFloatJson(stabilityWindowAverageMv, 1);
     json += ",\"saturated\":";
     json += sensorSaturated ? "true" : "false";
     json += ",\"calibrated\":";
@@ -225,7 +480,11 @@ String buildSensorStatusJson()
     json += nullableFloatJson(currentPh, 2);
     json += ",\"lastSampleAgeMs\":";
     json += sensorInitialized
-        ? String(static_cast<uint32_t>(millis() - lastSampleAt))
+        ? String(
+            static_cast<uint32_t>(
+                millis() - lastSampleAt
+            )
+        )
         : "0";
     json += "}";
 
@@ -234,22 +493,36 @@ String buildSensorStatusJson()
 
 bool captureCalibrationPoint(float knownPh, String& errorMessage)
 {
-    forcePhSensorSample();
-
     if (!sensorInitialized)
     {
-        errorMessage = "El sensor de pH todavía no está inicializado.";
+        errorMessage =
+            "El sensor de pH todavía no está inicializado.";
         return false;
+    }
+
+    if (
+        sensorInitialized &&
+        static_cast<uint32_t>(millis() - lastSampleAt) > 1500
+    )
+    {
+        sampleSensor();
     }
 
     if (sensorSaturated)
     {
         errorMessage =
-            "El ADC está saturado. Desconectá PO de GPIO34 y revisá la tensión antes de continuar.";
+            "El ADC está saturado. Revisá la tensión de PO antes de continuar.";
         return false;
     }
 
-    if (filteredMillivolts < 50)
+    if (!sensorStable)
+    {
+        errorMessage =
+            "La señal de pH está inestable. Esperá a que el estado indique ESTABLE antes de capturar.";
+        return false;
+    }
+
+    if (medianMillivolts < 50)
     {
         errorMessage =
             "La señal es demasiado baja para guardar una calibración válida.";
@@ -259,19 +532,26 @@ bool captureCalibrationPoint(float knownPh, String& errorMessage)
     const float previous7Mv = calibration7Mv;
     const float previous4Mv = calibration4Mv;
 
+    // La calibración no guarda una lectura instantánea: usa el promedio
+    // de las 120 lecturas filtradas del último minuto estable. Así el punto
+    // capturado representa la meseta completa y no un valor aislado.
+    const float captureMillivolts =
+        isfinite(stabilityWindowAverageMv)
+            ? stabilityWindowAverageMv
+            : static_cast<float>(filteredMillivolts);
+
     if (knownPh == 7.0f)
     {
-        calibration7Mv =
-            static_cast<float>(filteredMillivolts);
+        calibration7Mv = captureMillivolts;
     }
     else if (knownPh == 4.0f)
     {
-        calibration4Mv =
-            static_cast<float>(filteredMillivolts);
+        calibration4Mv = captureMillivolts;
     }
     else
     {
-        errorMessage = "Punto de calibración no soportado.";
+        errorMessage =
+            "Punto de calibración no soportado.";
         return false;
     }
 
@@ -289,6 +569,13 @@ bool captureCalibrationPoint(float knownPh, String& errorMessage)
             "Los puntos pH 7 y pH 4 quedaron demasiado cerca. Esperá a que la sonda se estabilice y repetí la captura.";
         return false;
     }
+
+    // Sincronizamos el filtro visual con el promedio realmente capturado.
+    smoothedMillivolts = captureMillivolts;
+    filteredMillivolts =
+        static_cast<uint32_t>(captureMillivolts + 0.5f);
+    previousFilteredMillivolts = filteredMillivolts;
+    filteredStepMv = 0;
 
     saveCalibration();
     updateCurrentPh();
@@ -362,6 +649,11 @@ bool isPhSensorSaturated()
     return sensorSaturated;
 }
 
+bool isPhSensorStable()
+{
+    return sensorStable;
+}
+
 uint16_t getPhSensorRaw()
 {
     return filteredRaw;
@@ -370,6 +662,16 @@ uint16_t getPhSensorRaw()
 uint32_t getPhSensorMillivolts()
 {
     return filteredMillivolts;
+}
+
+uint32_t getPhSensorBatchSpreadMillivolts()
+{
+    return batchSpreadMv;
+}
+
+uint32_t getPhSensorHistorySpreadMillivolts()
+{
+    return historySpreadMv;
 }
 
 float getPhSensorVoltage()
@@ -450,8 +752,10 @@ void handleCapturePhCalibration()
     String detail = "pH ";
     detail += String(knownPh, 0);
     detail += " · ";
-    detail += String(filteredMillivolts);
-    detail += " mV · GPIO ";
+    const float capturedMv =
+        knownPh == 7.0f ? calibration7Mv : calibration4Mv;
+    detail += String(capturedMv, 1);
+    detail += " mV (promedio 60 s) · GPIO ";
     detail += String(PH_SENSOR_PIN);
 
     logEvent(
@@ -460,12 +764,11 @@ void handleCapturePhCalibration()
         detail
     );
 
-    String json = buildSensorStatusJson();
     server.sendHeader("Cache-Control", "no-store");
     server.send(
         200,
         "application/json; charset=utf-8",
-        json
+        buildSensorStatusJson()
     );
 }
 

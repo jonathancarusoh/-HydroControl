@@ -1,0 +1,15 @@
+HydroControl 0.6.1 — calibración por meseta estable
+
+Cambios de pH:
+- El cartel permanece en LECTURA INESTABLE mientras la señal todavía se está asentando.
+- Cuando la lectura filtrada queda estable, cambia a LECTURA ESTABLE · PUEDE CALIBRAR.
+- Se requieren 20 ciclos consecutivos estables (aprox. 10 s).
+- La estabilidad ahora considera el movimiento de la lectura filtrada (máx. 3 mV por ciclo), además de límites de seguridad para ruido bruto.
+- Se tolera hasta 90 mV de dispersión dentro del lote, porque el filtrado robusto descarta extremos; el historial entre ciclos debe mantenerse dentro de 35 mV.
+- Los botones pH 7/pH 4 se habilitan solamente cuando la lectura está estable.
+- Al capturar no se fuerza una lectura nueva si la muestra actual está fresca, evitando que un pico aislado bloquee el clic.
+- La calibración guarda la meseta filtrada que se ve en pantalla.
+- Firmware: 0.6.1.
+
+Seguridad:
+- Si hay saturación ADC, desplazamiento sostenido o ruido grande, la señal sigue marcada como inestable y la calibración queda bloqueada.

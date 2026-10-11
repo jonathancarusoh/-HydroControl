@@ -1,4 +1,5 @@
 #include "profile_manager.h"
+#include "automatic_ph_dosing.h"
 #include "app_state.h"
 #include "clock_manager.h"
 #include "config.h"
@@ -768,13 +769,16 @@ void handleSaveProfile()
 
         if (
             getActiveProfileSlot() == slot &&
-            isManualPhDosingActive()
+            (
+                isManualPhDosingActive() ||
+                isAutomaticPhDosingActive()
+            )
         )
         {
             server.send(
                 409,
                 "application/json; charset=utf-8",
-                "{\"success\":false,\"message\":\"No se puede modificar el perfil activo mientras hay una dosificación manual en curso.\"}"
+                "{\"success\":false,\"message\":\"No se puede modificar el perfil activo mientras hay una dosificación de pH en curso.\"}"
             );
             return;
         }
@@ -817,12 +821,15 @@ void handleSaveProfile()
 
 void handleApplyProfile()
 {
-    if (isManualPhDosingActive())
+    if (
+        isManualPhDosingActive() ||
+        isAutomaticPhDosingActive()
+    )
     {
         server.send(
             409,
             "application/json; charset=utf-8",
-            "{\"success\":false,\"message\":\"No se puede aplicar un perfil mientras hay una dosificación manual en curso.\"}"
+            "{\"success\":false,\"message\":\"No se puede aplicar un perfil mientras hay una dosificación de pH en curso.\"}"
         );
         return;
     }
@@ -937,6 +944,22 @@ void handleDeleteProfile()
             "\"message\":\"El perfil seleccionado no existe.\"}"
         );
 
+        return;
+    }
+
+    if (
+        getActiveProfileSlot() == slot &&
+        (
+            isManualPhDosingActive() ||
+            isAutomaticPhDosingActive()
+        )
+    )
+    {
+        server.send(
+            409,
+            "application/json; charset=utf-8",
+            "{\"success\":false,\"message\":\"No se puede eliminar el perfil activo mientras hay una dosificación de pH en curso.\"}"
+        );
         return;
     }
 

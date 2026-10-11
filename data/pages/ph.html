@@ -126,6 +126,22 @@
                 HydroControl podrá corregir el pH respetando los límites configurados.
             </p>
 
+            <div
+                class="ph-auto-runtime-status is-disabled"
+                id="autoRuntimeStatus">
+                <span class="ph-auto-runtime-dot"></span>
+
+                <div>
+                    <strong id="autoRuntimeState">
+                        Consultando automático...
+                    </strong>
+
+                    <small id="autoRuntimeDetail">
+                        Esperando estado del ESP32
+                    </small>
+                </div>
+            </div>
+
             <div class="ph-control-auto-stats">
                 <div>
                     <span>Duración</span>
@@ -189,6 +205,12 @@
                 <span>Calibración</span>
                 <strong id="phSensorCalibrationState">Sin calibrar</strong>
                 <small>Buffers pH 7 y pH 4</small>
+            </article>
+
+            <article>
+                <span>Estado de señal</span>
+                <strong id="phSensorSignalState">--</strong>
+                <small id="phSensorNoise">Ruido lote -- · historial --</small>
             </article>
         </div>
 

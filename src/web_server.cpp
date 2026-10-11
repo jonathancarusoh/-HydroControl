@@ -1,5 +1,6 @@
 #include "web_server.h"
 #include "api.h"
+#include "automatic_ph_dosing.h"
 #include "app_state.h"
 #include "clock_manager.h"
 #include "event_logger.h"
@@ -203,6 +204,12 @@ void registerServerRoutes()
         "/api/ph/calibration/reset",
         HTTP_POST,
         handleResetPhCalibration
+    );
+
+    server.on(
+        "/api/ph/automatic/status",
+        HTTP_GET,
+        handleGetAutomaticPhDoseStatus
     );
 
     server.on(
